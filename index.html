@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BandHQ: AI-Powered Band Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Poppins', sans-serif;
+        font-weight: 400;
+        --brand-accent: #E11D48; /* rose-600 */
+        --brand-bg-outer: #111111;
+        --brand-bg-sidebar: #181818;
+        --brand-bg-content: #1F1F1F;
+        --brand-bg-card: #282828;
+        --brand-border: #383838;
+        background-color: var(--brand-bg-outer);
+        color: #E5E7EB; /* gray-200 */
+      }
+      /* Custom color classes */
+      .bg-brand-accent { background-color: var(--brand-accent); }
+      .hover\:bg-brand-accent-dark:hover { background-color: #BE123C; } /* rose-700 */
+      .text-brand-accent { color: var(--brand-accent); }
+      .border-brand-accent { border-color: var(--brand-accent); }
+      .ring-brand-accent:focus {
+        --tw-ring-color: var(--brand-accent) !important;
+      }
+      
+      .bg-brand-bg-outer { background-color: var(--brand-bg-outer); }
+      .bg-brand-bg-sidebar { background-color: var(--brand-bg-sidebar); }
+      .bg-brand-bg-content { background-color: var(--brand-bg-content); }
+      .bg-brand-bg-card { background-color: var(--brand-bg-card); }
+      .border-brand-border { border-color: var(--brand-border); }
+
+      /* Overriding default tailwind dark mode for consistency */
+      .bg-gray-900 { background-color: var(--brand-bg-content); }
+      .bg-gray-800 { background-color: var(--brand-bg-card); }
+      .bg-gray-700 { background-color: #3a3a3a; }
+      .border-gray-700 { border-color: var(--brand-border); }
+
+      /* Keep tailwind green for specific components if needed, but primary is accent */
+      .bg-spotify-green { background-color: var(--brand-accent); }
+      .hover\:bg-green-500:hover { background-color: #BE123C; }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.29.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+  }
+}
+</script>
+</head>
+  <body class="bg-brand-bg-outer text-gray-200">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
