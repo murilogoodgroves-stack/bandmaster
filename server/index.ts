@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import pool from './db';
@@ -31,5 +32,5 @@ app.get('/api/health', async (req, res) => {
 // Start Server
 app.listen(port, () => {
   console.log(`Backend server running at http://localhost:${port}`);
-  console.log(`Targeting Database: bandhq at 76.13.161.88`);
+  console.log(`Targeting Database: ${process.env.DB_NAME} at ${process.env.DB_HOST}`);
 });
