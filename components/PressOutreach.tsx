@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import type { PressContact, FoundPressContact, BandProfile, LastSearchParams } from '../types';
 import { ContactTier } from '../types';
 import { PlusIcon, TrashIcon, CopyIcon, UploadCloudIcon, SearchIcon, ExternalLinkIcon } from './icons';
-import { generateEmail, EmailTone, EmailLength, findPressContacts } from '../services/geminiService';
+import { generateEmail, EmailTone, EmailLength, findPressContacts } from '../services/aiService';
 import { Tip } from './Tip';
 import useLocalStorage from '../hooks/useLocalStorage';
 

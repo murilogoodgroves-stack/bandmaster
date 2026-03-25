@@ -5,7 +5,7 @@ import type { EmailCampaign, PressContact, Venue, Promoter, BandProfile, Calenda
 import { CampaignType, EventType } from '../types';
 import { initialCampaigns, initialPressContacts, initialPromoters, initialBandProfiles, initialEvents, initialUsers, initialReleases, initialTours, initialLabelContacts, initialRadioContacts, initialProductionProjects, initialFanContacts, initialVenues } from '../data/initialData';
 import { PlusIcon, TrashIcon, MailIcon, BotIcon, ChevronLeftIcon, ChevronRightIcon, EyeIcon, MousePointerClickIcon, CalendarIcon, ClockIcon } from './icons';
-import { generateEmail, EmailTone, EmailLength, generateEmailFromEPK } from '../services/geminiService';
+import { generateEmail, EmailTone, EmailLength, generateEmailFromEPK } from '../services/aiService';
 
 type CampaignView = 'list' | 'create';
 type CreateStep = 1 | 2 | 3 | 4;

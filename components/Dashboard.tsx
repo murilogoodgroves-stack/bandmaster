@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import type { Page, Task, ProductionProject, CalendarEvent, Transaction, MerchItem, Release, Tour, PressContact, LabelContact, FundingApplication, Festival, Venue, OpeningSlotOpportunity, WizardSuggestion, LastSearchParams, BandProfile, User } from '../types';
 import { TaskStatus, EventType, TransactionType } from '../types';
 import { CheckCircleIcon, ClockIcon, PlusIcon, BotIcon, RefreshCwIcon, ArrowRightIcon } from './icons';
-import { findLabelContacts } from '../services/geminiService';
+import { findLabelContacts } from '../services/aiService';
 import useLocalStorage from '../hooks/useLocalStorage';
 
 interface DashboardProps {

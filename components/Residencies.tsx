@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { findResidencies } from '../services/geminiService';
+import { findResidencies } from '../services/aiService';
 import type { ResidencyOpportunity, SavedResidency, CalendarEvent, User } from '../types';
 import { EventType } from '../types';
 import { SearchIcon, ExternalLinkIcon, SaveIcon, TrashIcon, PlusIcon, CalendarIcon, HomeIcon } from './icons';

@@ -7,7 +7,7 @@ import useLocalStorage from '../hooks/useLocalStorage';
 import type { RadioContact, RadioOpportunity, BandProfile, LastSearchParams, PressContact } from '../types';
 import { ContactTier } from '../types';
 import { PlusIcon, TrashIcon, CopyIcon, SearchIcon, ExternalLinkIcon, BotIcon, SaveIcon, RadioIcon, EditIcon } from './icons';
-import { generateEmail, EmailTone, EmailLength, findRadioContacts } from '../services/geminiService';
+import { generateEmail, EmailTone, EmailLength, findRadioContacts } from '../services/aiService';
 import { initialRadioContacts, initialBandProfiles } from '../data/initialData';
 import { Tip } from './Tip';
 

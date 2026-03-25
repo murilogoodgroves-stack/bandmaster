@@ -4,7 +4,7 @@ import useLocalStorage from '../hooks/useLocalStorage';
 import type { LabelContact, LabelOpportunity, BandProfile, LastSearchParams, PressContact } from '../types';
 import { ContactTier } from '../types';
 import { PlusIcon, TrashIcon, CopyIcon, SearchIcon, ExternalLinkIcon, BotIcon, SaveIcon, BuildingIcon, EditIcon, InstagramIcon, TwitterIcon, FacebookIcon, BandcampIcon } from './icons';
-import { generateEmail, EmailTone, EmailLength, findLabelContacts } from '../services/geminiService';
+import { generateEmail, EmailTone, EmailLength, findLabelContacts } from '../services/aiService';
 import { Tip } from './Tip';
 
 // Reusable AI Email Modal for pitching

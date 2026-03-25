@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { researchFunding } from '../services/geminiService';
+import { researchFunding } from '../services/aiService';
 import type { FundingOpportunity, SavedFundingOpportunity, CalendarEvent } from '../types';
 import { EventType } from '../types';
 import { initialSavedFundingOpps } from '../data/initialData';

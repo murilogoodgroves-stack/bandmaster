@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import type { WizardChatMessage, Task, CalendarEvent, Transaction, MerchItem, Release, Tour, BandProfile } from '../types';
-import { getWizardInsight } from '../services/geminiService';
+import { getWizardInsight } from '../services/aiService';
 import { BotIcon, SendIcon, ExternalLinkIcon } from './icons';
 import { Tip } from './Tip';
 

@@ -1,14 +1,16 @@
-import { GoogleGenAI, GenerateContentResponse, Modality } from "@google/genai";
+import Groq from "groq-sdk";
 import { BandProfile, SearchResult, WebSource, Song, ProductionProject, Task, Transaction, Tour, Release, MerchItem, CalendarEvent, PressContact, LabelContact, RadioContact, Venue, FestivalOpportunity, FundingOpportunity, SoundProfileAnalysis, SoundMatchOpportunity, ResidencyOpportunity, OpeningSlotOpportunity } from '../types';
 
-// Initialize Gemini API
+// Initialize Groq API
 const getAI = () => {
-    const key = import.meta.env.VITE_GEMINI_API_KEY || process.env.API_KEY || process.env.GEMINI_API_KEY;
+    const key = import.meta.env.VITE_GROQ_API_KEY || process.env.GROQ_API_KEY;
     if (!key) {
-        console.error("Gemini API key is missing. Please set VITE_GEMINI_API_KEY in your environment.");
+        console.error("Groq API key is missing. Please set VITE_GROQ_API_KEY in your environment.");
     }
-    return new GoogleGenAI({ apiKey: key || "" });
+    return new Groq({ apiKey: key || "", dangerouslyAllowBrowser: true });
 };
+
+const DEFAULT_MODEL = "llama-3.3-70b-versatile";
 
 // Helper to retry AI calls
 export const retryAI = async <T>(operation: () => Promise<T>, retries = 3, delay = 1000): Promise<T> => {
@@ -35,7 +37,7 @@ export const generateEmail = async (
     isBulk: boolean,
     project?: ProductionProject
 ): Promise<string> => {
-    const ai = getAI();
+    const groq = getAI();
     const projectContext = project ? `\nContext: promoting project "${project.name}" (${project.type}).` : '';
     
     const fullPrompt = `Write an email to ${recipientName || (isBulk ? '[Name]' : 'recipients')}.
@@ -45,16 +47,16 @@ export const generateEmail = async (
     ${projectContext}
     Do not include subject line unless asked. Just the body.`;
 
-    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: fullPrompt,
+    const chatCompletion = await retryAI(() => groq.chat.completions.create({
+        messages: [{ role: "user", content: fullPrompt }],
+        model: DEFAULT_MODEL,
     }));
 
-    return response.text || "";
+    return chatCompletion.choices[0]?.message?.content || "";
 };
 
 export const findPressContacts = async (artistQuery: string, pubType: string, country: string, existingResults: any[] = []): Promise<any[]> => {
-    const ai = getAI();
+    const groq = getAI();
     const exclude = existingResults.map(r => r.name).join(', ');
     
     const prompt = `Find 5 music journalists, blogs, or playlist curators who have recently covered artist: "${artistQuery}".
@@ -72,29 +74,27 @@ export const findPressContacts = async (artistQuery: string, pubType: string, co
         "city": "City",
         "url": "Link to recent article/playlist"
       }
-    ]`;
+    ]
+    IMPORTANT: Return ONLY the JSON array.`;
 
-    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { tools: [{ googleSearch: {} }] }
+    const chatCompletion = await retryAI(() => groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: DEFAULT_MODEL,
+        response_format: { type: "json_object" }
     }));
 
-    const text = response.text || "[]";
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (jsonMatch) {
-        try {
-            return JSON.parse(jsonMatch[0]);
-        } catch (e) {
-            console.error("Failed to parse JSON from AI response", e);
-            return [];
-        }
+    const text = chatCompletion.choices[0]?.message?.content || "[]";
+    try {
+        const parsed = JSON.parse(text);
+        return Array.isArray(parsed) ? parsed : (parsed.contacts || parsed.results || []);
+    } catch (e) {
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
     }
-    return [];
 };
 
 export const findLabelContacts = async (genre: string, country: string, size: string, labelName: string, existing: LabelContact[], similarToLabel: string): Promise<any[]> => {
-    const ai = getAI();
+    const groq = getAI();
     const exclude = existing.map(l => l.labelName).join(', ');
     
     const prompt = `Find record labels matching:
@@ -117,38 +117,49 @@ export const findLabelContacts = async (genre: string, country: string, size: st
         "url": "Website URL",
         "socials": { "instagram": "url", "twitter": "url" }
       }
-    ]`;
+    ]
+    IMPORTANT: Return ONLY the JSON array.`;
 
-    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { tools: [{ googleSearch: {} }] }
+    const chatCompletion = await retryAI(() => groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: DEFAULT_MODEL,
+        response_format: { type: "json_object" }
     }));
 
-    const text = response.text || "[]";
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+    const text = chatCompletion.choices[0]?.message?.content || "[]";
+    try {
+        const parsed = JSON.parse(text);
+        return Array.isArray(parsed) ? parsed : (parsed.labels || parsed.results || []);
+    } catch (e) {
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+    }
 };
 
 export const searchVenues = async (style: string, city: string, capacity: string, existing: any[] = []): Promise<any[]> => {
-    const ai = getAI();
+    const groq = getAI();
     const prompt = `Find music venues in ${city} suitable for ${style} bands. Capacity: ${capacity}.
     Exclude: ${existing.map(v => v.name).join(', ')}.
     
     Return JSON: { "venues": [{ "name": "Name", "city": "${city}", "description": "Desc", "capacity": number, "bookingEmail": "Email", "contactUrl": "Official URL or empty string" }] }`;
 
-    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { tools: [{ googleSearch: {} }] }
+    const chatCompletion = await retryAI(() => groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: DEFAULT_MODEL,
+        response_format: { type: "json_object" }
     }));
 
-    const match = (response.text || "").match(/\{[\s\S]*\}/);
-    return match ? JSON.parse(match[0]).venues || [] : [];
+    const text = chatCompletion.choices[0]?.message?.content || "{}";
+    try {
+        return JSON.parse(text).venues || [];
+    } catch (e) {
+        const match = text.match(/\{[\s\S]*\}/);
+        return match ? JSON.parse(match[0]).venues || [] : [];
+    }
 };
 
 export const findOpeningSlotOpportunities = async (genre: string, city: string, dateRange: string): Promise<OpeningSlotOpportunity[]> => {
-    const ai = getAI();
+    const groq = getAI();
     const prompt = `Find touring bands or headliners playing in ${city} during ${dateRange} that match the genre "${genre}".
     Focus on mid-tier artists playing venues sized 200-1000 capacity who might need a local support act.
     
@@ -165,38 +176,37 @@ export const findOpeningSlotOpportunities = async (genre: string, city: string, 
       }
     ]`;
 
-    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { tools: [{ googleSearch: {} }] }
+    const chatCompletion = await retryAI(() => groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: DEFAULT_MODEL,
+        response_format: { type: "json_object" }
     }));
 
-    const text = response.text || "[]";
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+    const text = chatCompletion.choices[0]?.message?.content || "[]";
+    try {
+        const parsed = JSON.parse(text);
+        return Array.isArray(parsed) ? parsed : (parsed.opportunities || parsed.results || []);
+    } catch (e) {
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+    }
 };
 
 export const searchWeb = async (query: string): Promise<SearchResult> => {
-    const ai = getAI();
-    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: query,
-        config: { tools: [{ googleSearch: {} }] }
+    const groq = getAI();
+    const chatCompletion = await retryAI(() => groq.chat.completions.create({
+        messages: [{ role: "user", content: query }],
+        model: DEFAULT_MODEL,
     }));
 
-    const sources: WebSource[] = response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map((chunk: any) => ({
-        uri: chunk.web?.uri || '',
-        title: chunk.web?.title || ''
-    })).filter((s: WebSource) => s.uri) || [];
-
     return {
-        answer: response.text || "No answer found.",
-        sources: sources
+        answer: chatCompletion.choices[0]?.message?.content || "No answer found.",
+        sources: [] // Groq doesn't provide grounding sources like Gemini
     };
 };
 
 export const getWizardInsight = async (query: string, context: any, bandProfile: BandProfile): Promise<{answer: string, sources?: WebSource[]}> => {
-    const ai = getAI();
+    const groq = getAI();
     
     const prompt = `You are a band management assistant for ${bandProfile.name}.
     Context Data:
@@ -206,24 +216,17 @@ export const getWizardInsight = async (query: string, context: any, bandProfile:
     
     User Query: "${query}"
     
-    If the query asks about the data, answer from Context Data.
-    If the query requires outside knowledge (e.g. "how to copyright song"), use Google Search.
+    Answer based on the Context Data provided. If the query requires outside knowledge, provide general advice based on your training data.
     `;
 
-    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { tools: [{ googleSearch: {} }] }
+    const chatCompletion = await retryAI(() => groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: DEFAULT_MODEL,
     }));
 
-    const sources: WebSource[] = response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map((chunk: any) => ({
-        uri: chunk.web?.uri || '',
-        title: chunk.web?.title || ''
-    })).filter((s: WebSource) => s.uri) || [];
-
     return {
-        answer: response.text || "I couldn't find an answer.",
-        sources
+        answer: chatCompletion.choices[0]?.message?.content || "I couldn't find an answer.",
+        sources: []
     };
 };
 
@@ -232,7 +235,7 @@ export const generateReleasePlan = async (
     bandProfile: BandProfile,
     options: { budget?: number, strategyFocus?: string }
 ): Promise<any> => {
-    const ai = getAI();
+    const groq = getAI();
     const prompt = `Create a release marketing plan for ${bandProfile.name} (${bandProfile.genre}).
     Release: "${releaseInfo.title}" (${releaseInfo.type}), Date: ${releaseInfo.releaseDate}.
     Budget: ${options.budget ? `$${options.budget}` : 'Low budget'}.
@@ -252,105 +255,129 @@ export const generateReleasePlan = async (
       ]
     }`;
 
-    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { responseMimeType: "application/json" }
+    const chatCompletion = await retryAI(() => groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: DEFAULT_MODEL,
+        response_format: { type: "json_object" }
     }));
 
     try {
-        return JSON.parse(response.text || "{}");
+        return JSON.parse(chatCompletion.choices[0]?.message?.content || "{}");
     } catch (e) {
         return { strategySummary: "Failed to parse plan.", checklist: [] };
     }
 };
 
 export const findTourDatesForArtist = async (artist: string, year: string, continent: string): Promise<any[]> => {
-    const ai = getAI();
+    const groq = getAI();
     const prompt = `Find tour dates for artist "${artist}" in ${year} ${continent !== 'any' ? `in ${continent}` : ''}.
     Return JSON: [ { "date": "YYYY-MM-DD", "city": "City, Country", "venue": "Venue Name" } ]`;
     
-    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { tools: [{ googleSearch: {} }] }
+    const chatCompletion = await retryAI(() => groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: DEFAULT_MODEL,
+        response_format: { type: "json_object" }
     }));
     
-    const text = response.text || "[]";
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+    const text = chatCompletion.choices[0]?.message?.content || "[]";
+    try {
+        const parsed = JSON.parse(text);
+        return Array.isArray(parsed) ? parsed : (parsed.dates || parsed.results || []);
+    } catch (e) {
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+    }
 };
 
 export const findVenueContactInfo = async (venueName: string, city: string): Promise<any> => {
-    const ai = getAI();
+    const groq = getAI();
     const prompt = `Find contact info for venue "${venueName}" in ${city}.
     Return JSON: { "name": "${venueName}", "city": "${city}", "capacity": number, "bookingEmail": "email", "contactUrl": "url", "description": "short desc" }`;
     
-    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { tools: [{ googleSearch: {} }] }
+    const chatCompletion = await retryAI(() => groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: DEFAULT_MODEL,
+        response_format: { type: "json_object" }
     }));
     
-    const text = response.text || "{}";
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    return jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+    const text = chatCompletion.choices[0]?.message?.content || "{}";
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        return jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+    }
 };
 
 export const researchFunding = async (query: string, existing: any[] = []): Promise<FundingOpportunity[]> => {
-    const ai = getAI();
+    const groq = getAI();
     const prompt = `Find music funding grants for: "${query}".
     Focus on Germany/Europe if not specified.
     Exclude: ${existing.map(e => e.name).join(', ')}.
     Return JSON: [ { "name": "", "description": "", "url": "", "deadline": "YYYY-MM-DD or Ongoing" } ]`;
     
-    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { tools: [{ googleSearch: {} }] }
+    const chatCompletion = await retryAI(() => groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: DEFAULT_MODEL,
+        response_format: { type: "json_object" }
     }));
     
-    const text = response.text || "[]";
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+    const text = chatCompletion.choices[0]?.message?.content || "[]";
+    try {
+        const parsed = JSON.parse(text);
+        return Array.isArray(parsed) ? parsed : (parsed.funding || parsed.results || []);
+    } catch (e) {
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+    }
 };
 
 export const researchFestivals = async (genre: string, location: string, timeWindow: string, existing: any[] = []): Promise<FestivalOpportunity[]> => {
-    const ai = getAI();
+    const groq = getAI();
     const prompt = `Find music festivals accepting submissions.
     Genre: ${genre}. Location: ${location}. Timing: ${timeWindow}.
     Exclude: ${existing.map(e => e.name).join(', ')}.
     Return JSON: [ { "name": "", "country": "", "description": "", "url": "", "deadline": "YYYY-MM-DD", "genre": "" } ]`;
     
-    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { tools: [{ googleSearch: {} }] }
+    const chatCompletion = await retryAI(() => groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: DEFAULT_MODEL,
+        response_format: { type: "json_object" }
     }));
     
-    const text = response.text || "[]";
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+    const text = chatCompletion.choices[0]?.message?.content || "[]";
+    try {
+        const parsed = JSON.parse(text);
+        return Array.isArray(parsed) ? parsed : (parsed.festivals || parsed.results || []);
+    } catch (e) {
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+    }
 };
 
 export const getEuropeanIndieFestivals = async (): Promise<any[]> => {
-    const ai = getAI();
+    const groq = getAI();
     const prompt = `List 20 popular European indie music festivals.
     Return JSON: [ { "name": "", "country": "", "typicalMonth": number (1-12), "url": "", "contactName": "", "contactEmail": "" } ]`;
     
-    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { tools: [{ googleSearch: {} }] }
+    const chatCompletion = await retryAI(() => groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: DEFAULT_MODEL,
+        response_format: { type: "json_object" }
     }));
     
-    const text = response.text || "[]";
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+    const text = chatCompletion.choices[0]?.message?.content || "[]";
+    try {
+        const parsed = JSON.parse(text);
+        return Array.isArray(parsed) ? parsed : (parsed.festivals || parsed.results || []);
+    } catch (e) {
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+    }
 };
 
 export const generateEmailFromEPK = async (epkData: any, bandProfile: BandProfile): Promise<string> => {
-    const ai = getAI();
+    const groq = getAI();
     const prompt = `Write a booking/pitch email for ${bandProfile.name}.
     Use EPK Data:
     Bio: ${epkData.bio}
@@ -359,16 +386,16 @@ export const generateEmailFromEPK = async (epkData: any, bandProfile: BandProfil
     
     Tone: Professional but exciting.`;
     
-    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
+    const chatCompletion = await retryAI(() => groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: DEFAULT_MODEL,
     }));
     
-    return response.text || "";
+    return chatCompletion.choices[0]?.message?.content || "";
 };
 
 export const generateReportInsights = async (context: any, bandProfile: BandProfile): Promise<any[]> => {
-    const ai = getAI();
+    const groq = getAI();
     const prompt = `Analyze this band data and provide 3 insights/recommendations.
     Band: ${bandProfile.name}
     Tasks Pending: ${context.tasks.filter((t:any) => t.status!=='Done').length}
@@ -377,21 +404,23 @@ export const generateReportInsights = async (context: any, bandProfile: BandProf
     
     Return JSON: [ { "id": "1", "text": "Insight text", "severity": "info"|"warning"|"opportunity", "action": { "label": "Button Label", "page": "dashboard" } } ]`;
     
-    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { responseMimeType: "application/json" }
+    const chatCompletion = await retryAI(() => groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: DEFAULT_MODEL,
+        response_format: { type: "json_object" }
     }));
     
     try {
-        return JSON.parse(response.text || "[]");
+        const text = chatCompletion.choices[0]?.message?.content || "[]";
+        const parsed = JSON.parse(text);
+        return Array.isArray(parsed) ? parsed : (parsed.insights || parsed.results || []);
     } catch (e) {
         return [];
     }
 };
 
 export const generateReportConfigFromPrompt = async (userPrompt: string, projects: ProductionProject[], users: any[]): Promise<any> => {
-    const ai = getAI();
+    const groq = getAI();
     const prompt = `Translate user request "${userPrompt}" into a report config.
     Available Data Sources: Tasks, Transactions, Shows, Releases.
     Available Filters: status, projectId, type, category.
@@ -399,50 +428,54 @@ export const generateReportConfigFromPrompt = async (userPrompt: string, project
     
     Return JSON: { "dataSource": "Tasks", "displayAs": "Table", "filters": { "status": "Done" } }`;
     
-    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { responseMimeType: "application/json" }
+    const chatCompletion = await retryAI(() => groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: DEFAULT_MODEL,
+        response_format: { type: "json_object" }
     }));
     
     try {
-        return JSON.parse(response.text || "{}");
+        return JSON.parse(chatCompletion.choices[0]?.message?.content || "{}");
     } catch (e) {
         return null;
     }
 };
 
 export const findRadioContacts = async (genre: string, country: string, existing: any[] = []): Promise<RadioContact[]> => {
-    const ai = getAI();
+    const groq = getAI();
     const exclude = existing.map(e => e.stationName).join(', ');
     const prompt = `Find radio stations for genre: "${genre}" in "${country || 'anywhere'}".
     Exclude: ${exclude}.
     Return JSON: [ { "stationName": "", "contactName": "", "email": "", "country": "", "city": "", "description": "", "url": "" } ]`;
     
-    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { tools: [{ googleSearch: {} }] }
+    const chatCompletion = await retryAI(() => groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: DEFAULT_MODEL,
+        response_format: { type: "json_object" }
     }));
     
-    const text = response.text || "[]";
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    const raw = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
-    return raw.map((r: any) => ({
-        id: '',
-        name: r.contactName,
-        stationName: r.stationName,
-        email: r.email,
-        country: r.country,
-        city: r.city,
-        submissionUrl: r.url,
-        description: r.description,
-        bandId: ''
-    }));
+    const text = chatCompletion.choices[0]?.message?.content || "[]";
+    try {
+        const parsed = JSON.parse(text);
+        const raw = Array.isArray(parsed) ? parsed : (parsed.stations || parsed.results || []);
+        return raw.map((r: any) => ({
+            id: '',
+            name: r.contactName,
+            stationName: r.stationName,
+            email: r.email,
+            country: r.country,
+            city: r.city,
+            submissionUrl: r.url,
+            description: r.description,
+            bandId: ''
+        }));
+    } catch (e) {
+        return [];
+    }
 };
 
 export const analyzeArtistSoundProfile = async (artistId: string): Promise<SoundProfileAnalysis> => {
-    const ai = getAI();
+    const groq = getAI();
     const prompt = `Analyze the sound profile of Spotify Artist ID: ${artistId}.
     Search the web for reviews, descriptions, and similar artists.
     Return JSON:
@@ -457,15 +490,19 @@ export const analyzeArtistSoundProfile = async (artistId: string): Promise<Sound
       "reasoning": "Why this analysis matches"
     }`;
     
-    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { tools: [{ googleSearch: {} }] }
+    const chatCompletion = await retryAI(() => groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: DEFAULT_MODEL,
+        response_format: { type: "json_object" }
     }));
     
-    const text = response.text || "{}";
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    return jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+    const text = chatCompletion.choices[0]?.message?.content || "{}";
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        return jsonMatch ? JSON.parse(jsonMatch[0]) : {} as any;
+    }
 };
 
 export const findOpportunitiesFromProfile = async (
@@ -473,7 +510,7 @@ export const findOpportunitiesFromProfile = async (
     existingPress: any[], 
     existingRadio: any[]
 ): Promise<{ press: SoundMatchOpportunity[], radio: SoundMatchOpportunity[] }> => {
-    const ai = getAI();
+    const groq = getAI();
     const prompt = `Find 3 music blogs and 3 radio stations that have featured artists similar to "${profile.artistName}" (e.g. ${profile.similarArtists.join(', ')}).
     Exclude: ${existingPress.map(p => p.outlet).join(', ')}, ${existingRadio.map(r => r.stationName).join(', ')}.
     Return JSON:
@@ -482,35 +519,43 @@ export const findOpportunitiesFromProfile = async (
       "radio": [ { "name": "DJ", "outlet": "Station", "email": "email", "country": "", "url": "", "sourceArtist": "Artist B" } ]
     }`;
     
-    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { tools: [{ googleSearch: {} }] }
+    const chatCompletion = await retryAI(() => groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: DEFAULT_MODEL,
+        response_format: { type: "json_object" }
     }));
     
-    const text = response.text || "{}";
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    const result = jsonMatch ? JSON.parse(jsonMatch[0]) : { press: [], radio: [] };
-    // Ensure types
-    result.press = result.press.map((p: any) => ({ ...p, type: 'press' }));
-    result.radio = result.radio.map((r: any) => ({ ...r, type: 'radio' }));
-    return result;
+    const text = chatCompletion.choices[0]?.message?.content || "{}";
+    try {
+        const result = JSON.parse(text);
+        // Ensure types
+        result.press = (result.press || []).map((p: any) => ({ ...p, type: 'press' }));
+        result.radio = (result.radio || []).map((r: any) => ({ ...r, type: 'radio' }));
+        return result;
+    } catch (e) {
+        return { press: [], radio: [] };
+    }
 };
 
 export const findResidencies = async (discipline: string, location: string, costType: string, existing: any[] = []): Promise<ResidencyOpportunity[]> => {
-    const ai = getAI();
+    const groq = getAI();
     const prompt = `Find artist residencies for "${discipline}" ${location ? `in ${location}` : ''}.
     ${costType !== 'all' ? `Cost Model: ${costType}` : ''}.
     Exclude: ${existing.map(e => e.name).join(', ')}.
     Return JSON: [ { "name": "", "location": "", "description": "", "url": "", "deadline": "YYYY-MM-DD", "costType": "Paid/Stipend"|"Free"|"Fee Required", "discipline": "" } ]`;
     
-    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { tools: [{ googleSearch: {} }] }
+    const chatCompletion = await retryAI(() => groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: DEFAULT_MODEL,
+        response_format: { type: "json_object" }
     }));
     
-    const text = response.text || "[]";
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+    const text = chatCompletion.choices[0]?.message?.content || "[]";
+    try {
+        const parsed = JSON.parse(text);
+        return Array.isArray(parsed) ? parsed : (parsed.residencies || parsed.results || []);
+    } catch (e) {
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+    }
 };

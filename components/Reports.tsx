@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import useLocalStorage from '../hooks/useLocalStorage';
 import type { Page, Task, Transaction, Show, Release, BandProfile, ProductionProject, Insight, ReportConfig, ReportDataSource, Tour, ReportDisplay as ReportDisplayType, User } from '../types';
-import { generateReportInsights, generateReportConfigFromPrompt } from '../services/geminiService';
+import { generateReportInsights, generateReportConfigFromPrompt } from '../services/aiService';
 import { BarChartIcon, BotIcon, LightbulbIcon, PlusIcon, SearchIcon } from './icons';
 import { TaskStatus, TransactionType } from '../types';
 

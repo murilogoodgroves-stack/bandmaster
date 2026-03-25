@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import type { Gig, Venue, OpeningSlotOpportunity, Invoice, Transaction, BandSettings } from '../types';
 import { initialGigs, initialVenues, initialOpeningSlots } from '../data/initialData';
 import { PlusIcon, TrashIcon, SearchIcon, ExternalLinkIcon, SaveIcon, MapPinIcon, InvoiceIcon, BarChartIcon, UsersIcon } from './icons';
-import { searchVenues, findOpeningSlotOpportunities } from '../services/geminiService';
+import { searchVenues, findOpeningSlotOpportunities } from '../services/aiService';
 import { Tip } from './Tip';
 
 interface GigsProps {

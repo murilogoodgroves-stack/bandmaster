@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import useLocalStorage from '../hooks/useLocalStorage';
-import { researchFestivals, getEuropeanIndieFestivals } from '../services/geminiService';
+import { researchFestivals, getEuropeanIndieFestivals } from '../services/aiService';
 import type { Festival, FestivalOpportunity, CalendarEvent, FestivalDirectoryEntry, User } from '../types';
 import { EventType } from '../types';
 import { SearchIcon, ExternalLinkIcon, PlusIcon, TrashIcon, SaveIcon, CalendarIcon, CheckCircleIcon } from './icons';

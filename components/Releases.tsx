@@ -5,7 +5,7 @@ import { ReleaseType, TaskStatus } from '../types';
 import type { Release, ReleaseChecklistItem, PressContact, User, BandProfile, ProductionProject, Task } from '../types';
 import { releasePlanTemplate } from '../data/releasePlanTemplate';
 import { PlusIcon, TrashIcon, ChevronDownIcon, UploadCloudIcon, BotIcon, SlashIcon, InfoIcon } from './icons';
-import { generateEmail, EmailTone, EmailLength, generateReleasePlan } from '../services/geminiService';
+import { generateEmail, EmailTone, EmailLength, generateReleasePlan } from '../services/aiService';
 import { Tip } from './Tip';
 import { initialBandProfiles, initialPressContacts } from '../data/initialData';
 

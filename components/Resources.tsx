@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { searchWeb } from '../services/geminiService';
+import { searchWeb } from '../services/aiService';
 import type { SearchResult } from '../types';
 import { SearchIcon } from './icons';
 

@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import useLocalStorage from '../hooks/useLocalStorage';
-import { analyzeArtistSoundProfile, findOpportunitiesFromProfile } from '../services/geminiService';
+import { analyzeArtistSoundProfile, findOpportunitiesFromProfile } from '../services/aiService';
 import type { SoundProfileAnalysis, SoundMatchOpportunity, PressContact, RadioContact } from '../types';
 import { initialPressContacts, initialRadioContacts } from '../data/initialData';
 import { BotIcon, SearchIcon, SaveIcon, ExternalLinkIcon, RadioIcon, PressIcon, WandIcon } from './icons';
