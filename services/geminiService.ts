@@ -1,8 +1,14 @@
 import { GoogleGenAI, GenerateContentResponse, Modality } from "@google/genai";
-import { BandProfile, SearchResult, WebSource, Song, ProductionProject, Task, Transaction, Tour, Release, MerchItem, CalendarEvent, PressContact, LabelContact, RadioContact, Venue, FestivalOpportunity, FundingOpportunity, SoundProfileAnalysis, SoundMatchOpportunity, ResidencyOpportunity } from '../types';
+import { BandProfile, SearchResult, WebSource, Song, ProductionProject, Task, Transaction, Tour, Release, MerchItem, CalendarEvent, PressContact, LabelContact, RadioContact, Venue, FestivalOpportunity, FundingOpportunity, SoundProfileAnalysis, SoundMatchOpportunity, ResidencyOpportunity, OpeningSlotOpportunity } from '../types';
 
 // Initialize Gemini API
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+const getAI = () => {
+    const key = import.meta.env.VITE_GEMINI_API_KEY || process.env.API_KEY || process.env.GEMINI_API_KEY;
+    if (!key) {
+        console.error("Gemini API key is missing. Please set VITE_GEMINI_API_KEY in your environment.");
+    }
+    return new GoogleGenAI({ apiKey: key || "" });
+};
 
 // Helper to retry AI calls
 export const retryAI = async <T>(operation: () => Promise<T>, retries = 3, delay = 1000): Promise<T> => {
@@ -139,6 +145,35 @@ export const searchVenues = async (style: string, city: string, capacity: string
 
     const match = (response.text || "").match(/\{[\s\S]*\}/);
     return match ? JSON.parse(match[0]).venues || [] : [];
+};
+
+export const findOpeningSlotOpportunities = async (genre: string, city: string, dateRange: string): Promise<OpeningSlotOpportunity[]> => {
+    const ai = getAI();
+    const prompt = `Find touring bands or headliners playing in ${city} during ${dateRange} that match the genre "${genre}".
+    Focus on mid-tier artists playing venues sized 200-1000 capacity who might need a local support act.
+    
+    Return JSON:
+    [
+      {
+        "headlinerArtist": "Band Name",
+        "date": "YYYY-MM-DD",
+        "venue": "Venue Name",
+        "city": "${city}",
+        "promoterName": "Promoter/Organizer Name (or 'Unknown')",
+        "promoterEmail": "Contact Email (or 'Unknown')",
+        "sourceUrl": "Link to event/ticket page"
+      }
+    ]`;
+
+    const response = await retryAI<GenerateContentResponse>(() => ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+        config: { tools: [{ googleSearch: {} }] }
+    }));
+
+    const text = response.text || "[]";
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
 };
 
 export const searchWeb = async (query: string): Promise<SearchResult> => {
