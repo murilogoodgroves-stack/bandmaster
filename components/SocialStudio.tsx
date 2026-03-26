@@ -1,10 +1,10 @@
 
 import React, { useState, useMemo } from 'react';
-import { GoogleGenAI, Modality } from "@google/genai";
 import useLocalStorage from '../hooks/useLocalStorage';
 import { initialBandProfiles } from '../data/initialData';
-import { BotIcon, DownloadIcon, ImageIcon, FileTextIcon, VideoIcon, CopyIcon, WandIcon } from './icons';
+import { DownloadIcon, ImageIcon, FileTextIcon, VideoIcon, CopyIcon, WandIcon } from './icons';
 import type { BandProfile } from '../types';
+import { callAI, generateImage, retryAI } from '../services/aiService';
 
 const imageStyles = ["Cinematic", "Vintage Film", "Psychedelic", "Minimalist Black & White", "Grunge", "Dreamy & Ethereal", "Lo-fi Analog"];
 
@@ -65,10 +65,7 @@ const CaptionGenerator: React.FC<{ bands: BandProfile[] }> = ({ bands }) => {
         window.dispatchEvent(new CustomEvent('start-task', { detail: { id: taskId, name: 'Generating social media captions...', estimatedDuration: 15 } }));
 
         try {
-            if (!process.env.API_KEY) throw new Error("API key not configured.");
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: fullPrompt });
-            const generatedText = response.text;
+            const generatedText = await retryAI(() => callAI([{ role: 'user', content: fullPrompt }]));
             setCaptions(generatedText.split('---').map(s => s.trim()).filter(Boolean));
         } catch (e) {
             setError(e instanceof Error ? e.message : "An unknown error occurred.");
@@ -135,20 +132,8 @@ const ImageGenerator: React.FC = () => {
         window.dispatchEvent(new CustomEvent('start-task', { detail: { id: taskId, name: 'Generating social media image...', estimatedDuration: 30 } }));
 
         try {
-            if (!process.env.API_KEY) throw new Error("API key not configured.");
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash-image',
-                contents: { parts: [{ text: fullPrompt }] },
-                config: { responseModalities: [Modality.IMAGE] },
-            });
-            
-            const part = response.candidates?.[0]?.content?.parts?.[0];
-            if (part?.inlineData) {
-                setImageUrl(`data:${part.inlineData.mimeType};base64,${part.inlineData.data}`);
-            } else {
-                throw new Error("The AI did not return an image. Please try refining your prompt.");
-            }
+            const url = await retryAI(() => generateImage(fullPrompt));
+            setImageUrl(url);
         } catch (e) {
             setError(e instanceof Error ? e.message : "An unknown error occurred.");
         } finally {

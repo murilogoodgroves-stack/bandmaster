@@ -15,7 +15,7 @@ import { Sidebar } from './components/Sidebar';
 import { Settings } from './components/Settings';
 import { AiAssistant } from './components/AiAssistant';
 import { BotIcon } from './components/icons';
-import type { Page, EmailCampaign, BandProfile, User, Task, ProductionProject, CalendarEvent, Transaction, MerchItem, Release, Tour, Setlist, Collaborator, PressContact, LabelContact, RadioContact, Venue, OpeningSlotOpportunity, FanContact, Gig, FundingApplication, Festival, BandGoal, MediaAsset, RoyaltyStatement, Song, Budget, LockedDate, PublishedArticle, SaasSubscription, Promoter, ReportConfig, Invoice, BandSettings, CashHolding, MemberTransaction, SavedFundingOpportunity, SavedResidency } from './types';
+import type { Page, EmailCampaign, BandProfile, User, Task, ProductionProject, CalendarEvent, Transaction, MerchItem, Release, Tour, Setlist, Collaborator, PressContact, LabelContact, RadioContact, Venue, OpeningSlotOpportunity, FanContact, Gig, FundingApplication, Festival, BandGoal, MediaAsset, RoyaltyStatement, Song, Budget, LockedDate, PublishedArticle, SaasSubscription, Promoter, ReportConfig, Invoice, BandSettings, CashHolding, MemberTransaction, SavedFundingOpportunity, SavedResidency, EmailTemplate } from './types';
 import { Production } from './components/Production';
 import { Funding } from './components/Funding';
 import { Festivals } from './components/Festivals';
@@ -34,6 +34,8 @@ import { SocialStudio } from './components/SocialStudio';
 import { SoundMatch } from './components/SoundMatch';
 import { Invoices } from './components/Invoices';
 import { Residencies } from './components/Residencies';
+import { SystemStatus } from './components/SystemStatus';
+import { AIStatusWarning } from './components/AIStatusWarning';
 import useLocalStorage from './hooks/useLocalStorage';
 import { 
     initialCampaigns, initialBandProfiles, initialUsers, initialTasks, initialProductionProjects, initialEvents, 
@@ -154,6 +156,7 @@ const App: React.FC = () => {
   // Business
   const [transactions, setTransactions] = useLocalStorage<Transaction[]>('transactions', initialTransactions);
   const [invoices, setInvoices] = useLocalStorage<Invoice[]>('invoices', initialInvoices);
+  const [emailTemplates, setEmailTemplates] = useLocalStorage<EmailTemplate[]>('emailTemplates', []);
   // Band Settings Map - Keyed by Band ID to prevent data leakage
   const [bandSettingsMap, setBandSettingsMap] = useLocalStorage<{[bandId: string]: BandSettings}>('bandSettingsMap', {
       [initialBandProfiles[0].id]: initialBandSettings
@@ -371,7 +374,7 @@ const App: React.FC = () => {
 
 
   const renderPage = () => {
-    const allProps = { activeBandId, bands, users, setUsers, setBands };
+    const allProps = { activeBandId, bands, users, setUsers, setBands, emailTemplates, setEmailTemplates };
     
     switch (page) {
       case 'dashboard':
@@ -452,6 +455,8 @@ const App: React.FC = () => {
         return <Funding {...allProps} savedFundingOpps={savedFundingOpps} setSavedFundingOpps={setSavedFundingOpps} setEvents={setEvents} />;
       case 'residencies':
         return <Residencies {...allProps} events={events} setEvents={setEvents} savedResidencies={savedResidencies} setSavedResidencies={setSavedResidencies} />;
+      case 'system-status':
+        return <SystemStatus />;
       case 'festivals':
         return <Festivals {...allProps} events={events} setEvents={setEvents} savedFestivals={festivals} setSavedFestivals={setFestivals} />;
       case 'goals':
@@ -507,6 +512,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex min-h-screen bg-brand-bg-outer text-gray-200">
+      <AIStatusWarning />
       <Sidebar 
         currentPage={page} 
         bands={bands}

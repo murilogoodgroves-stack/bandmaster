@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Cron logs: Allow read/write for now to demonstrate the cronjob
+    // In a real app, you'd restrict this to a specific service account or admin
+    match /cron_logs/{logId} {
+      allow read, write: if true; 
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

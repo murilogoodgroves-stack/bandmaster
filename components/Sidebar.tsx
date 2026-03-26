@@ -4,7 +4,7 @@ import type { Page, User, BandProfile } from '../types';
 import { 
     DashboardIcon, ProjectsIcon, CalendarIcon, FinancialsIcon, PressIcon, MerchIcon, ReleaseIcon, TourIcon, SetlistIcon, CollaboratorIcon, ResourcesIcon, SettingsIcon,
     ProductionIcon, FundingIcon, FestivalIcon, GoalsIcon, MediaArchiveIcon, EPKIcon, BookingIcon, RoyaltiesIcon, MailIcon, BuildingIcon, BarChartIcon, UsersIcon, PlusIcon, EditIcon, StageIcon, RadioIcon, MegaphoneIcon,
-    SoundMatchIcon, InvoiceIcon, SaveIcon, SlashIcon, HomeIcon
+    SoundMatchIcon, InvoiceIcon, SaveIcon, SlashIcon, HomeIcon, TerminalIcon
 } from './icons';
 
 interface SidebarProps {
@@ -119,6 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBand
   const managementNavItems = [
     { id: 'media', label: 'Media Archive', icon: <MediaArchiveIcon className="h-5 w-5" />},
     { id: 'resources', label: 'Resources', icon: <ResourcesIcon className="h-5 w-5" /> },
+    { id: 'system-status', label: 'System Status', icon: <TerminalIcon className="h-5 w-5" /> },
   ];
   
   const settingsItem = { id: 'settings', label: 'Settings', icon: <SettingsIcon className="h-5 w-5" /> };

@@ -1,10 +1,10 @@
 
 import React, { useState, useMemo } from 'react';
-import { GoogleGenAI, Modality } from "@google/genai";
 import useLocalStorage from '../hooks/useLocalStorage';
 import { initialUsers, initialBandProfiles } from '../data/initialData';
 import { BotIcon, DownloadIcon, PlusIcon, TrashIcon, CopyIcon, FileTextIcon, StageIcon, WandIcon } from './icons';
 import type { User, BandProfile } from '../types';
+import { generateImage, retryAI } from '../services/aiService';
 
 type StagePlotTab = 'map' | 'rider';
 type Member = { id: number; name: string; instrument: string; position: string; notes: string };
@@ -71,20 +71,8 @@ const StageMapGenerator: React.FC<{ users: User[], activeBandId: string }> = ({ 
         window.dispatchEvent(new CustomEvent('start-task', { detail: { id: taskId, name: 'Generating AI Stage Plot...', estimatedDuration: 25 } }));
 
         try {
-            if (!process.env.API_KEY) throw new Error("API key not configured.");
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash-image',
-                contents: { parts: [{ text: prompt }] },
-                config: { responseModalities: [Modality.IMAGE] },
-            });
-            
-            const part = response.candidates?.[0]?.content?.parts?.[0];
-            if (part?.inlineData) {
-                setGeneratedMapUrl(`data:${part.inlineData.mimeType};base64,${part.inlineData.data}`);
-            } else {
-                throw new Error("The AI did not return an image. Please try refining your prompt.");
-            }
+            const url = await retryAI(() => generateImage(prompt));
+            setGeneratedMapUrl(url);
         } catch (e) {
             console.error(e);
             setError(e instanceof Error ? e.message : "An unknown error occurred.");

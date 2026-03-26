@@ -129,3 +129,5 @@ export const InstagramIcon: React.FC<{ className?: string }> = ({ className }) =
 export const TwitterIcon: React.FC<{ className?: string }> = ({ className }) => <Icon className={className}><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></Icon>;
 export const FacebookIcon: React.FC<{ className?: string }> = ({ className }) => <Icon className={className}><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path></Icon>;
 export const BandcampIcon: React.FC<{ className?: string }> = ({ className }) => <Icon className={className}><path d="m12 6-6 6h12Z M6 12v6h12v-6Z"></path></Icon>;
+export const TerminalIcon: React.FC<{ className?: string }> = ({ className }) => <Icon className={className}><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></Icon>;
+export const XCircleIcon: React.FC<{ className?: string }> = ({ className }) => <Icon className={className}><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></Icon>;

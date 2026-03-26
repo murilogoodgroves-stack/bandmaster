@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import type { Gig, Venue, OpeningSlotOpportunity, Invoice, Transaction, BandSettings } from '../types';
+import type { Gig, Venue, OpeningSlotOpportunity, Invoice, Transaction, BandSettings, BandProfile, EmailTemplate, InvoiceStatus } from '../types';
 import { initialGigs, initialVenues, initialOpeningSlots } from '../data/initialData';
-import { PlusIcon, TrashIcon, SearchIcon, ExternalLinkIcon, SaveIcon, MapPinIcon, InvoiceIcon, BarChartIcon, UsersIcon } from './icons';
-import { searchVenues, findOpeningSlotOpportunities } from '../services/aiService';
+import { PlusIcon, TrashIcon, SearchIcon, ExternalLinkIcon, SaveIcon, MapPinIcon, InvoiceIcon, BarChartIcon, UsersIcon, MailIcon, FileTextIcon, EditIcon, WandIcon, SendIcon } from './icons';
+import { searchVenues, findOpeningSlotOpportunities, generateGigEmail, createEmailTemplate, EmailTone, EmailLength } from '../services/aiService';
 import { Tip } from './Tip';
 
 interface GigsProps {
@@ -18,16 +18,22 @@ interface GigsProps {
     setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
     bandSettings: BandSettings;
     activeBandId: string;
+    bands: BandProfile[];
+    emailTemplates?: EmailTemplate[];
+    setEmailTemplates?: React.Dispatch<React.SetStateAction<EmailTemplate[]>>;
 }
 
-export const Gigs: React.FC<GigsProps> = ({ gigs: allGigs, setGigs, venues: allVenues, setVenues, activeBandId }) => {
+export const Gigs: React.FC<GigsProps> = ({ gigs: allGigs, setGigs, venues: allVenues, setVenues, activeBandId, bands, setInvoices, emailTemplates, setEmailTemplates }) => {
     const gigs = useMemo(() => allGigs.filter(g => g.bandId === activeBandId), [allGigs, activeBandId]);
     const venues = useMemo(() => allVenues.filter(v => v.bandId === activeBandId), [allVenues, activeBandId]);
+    const activeBand = useMemo(() => bands.find(b => b.id === activeBandId) || { name: 'Unknown Band', genre: 'Unknown', id: activeBandId }, [bands, activeBandId]);
 
     const [activeTab, setActiveTab] = useState<'pipeline' | 'gigs' | 'venues' | 'openings'>('pipeline');
     const [venueSearch, setVenueSearch] = useState({ city: '', style: '', capacity: '100-300' });
     const [foundVenues, setFoundVenues] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [selectedGig, setSelectedGig] = useState<Gig | null>(null);
+    const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
     const handleSearchVenues = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -93,13 +99,13 @@ export const Gigs: React.FC<GigsProps> = ({ gigs: allGigs, setGigs, venues: allV
             </div>
 
             {activeTab === 'pipeline' && (
-                <GigPipeline gigs={gigs} setGigs={setGigs} />
+                <GigPipeline gigs={gigs} setGigs={setGigs} onSelectGig={setSelectedGig} />
             )}
 
             {activeTab === 'gigs' && (
                 <div className="grid gap-4">
                     {gigs.map(gig => (
-                        <div key={gig.id} className="bg-gray-800 p-4 rounded-lg shadow flex justify-between items-center">
+                        <div key={gig.id} onClick={() => setSelectedGig(gig)} className="bg-gray-800 p-4 rounded-lg shadow flex justify-between items-center cursor-pointer hover:bg-gray-750 transition-colors">
                             <div>
                                 <h3 className="text-xl font-bold">{gig.eventName || gig.location}</h3>
                                 <p className="text-gray-400">{new Date(gig.date).toLocaleDateString()} - {gig.status}</p>
@@ -111,6 +117,28 @@ export const Gigs: React.FC<GigsProps> = ({ gigs: allGigs, setGigs, venues: allV
                     ))}
                     {gigs.length === 0 && <p className="text-gray-500">No gigs scheduled.</p>}
                 </div>
+            )}
+
+            {selectedGig && (
+                <GigDetailModal 
+                    gig={selectedGig} 
+                    activeBand={activeBand}
+                    setInvoices={setInvoices}
+                    onClose={() => setSelectedGig(null)} 
+                    onUpdate={(updated) => setGigs(prev => prev.map(g => g.id === updated.id ? updated : g))}
+                    onDelete={(id) => { setGigs(prev => prev.filter(g => g.id !== id)); setSelectedGig(null); }}
+                    onOpenEmail={() => setIsEmailModalOpen(true)}
+                />
+            )}
+
+            {isEmailModalOpen && selectedGig && (
+                <GigEmailModal 
+                    gig={selectedGig} 
+                    bandProfile={activeBand}
+                    onClose={() => setIsEmailModalOpen(false)} 
+                    emailTemplates={emailTemplates}
+                    setEmailTemplates={setEmailTemplates}
+                />
             )}
 
             {activeTab === 'openings' && (
@@ -157,10 +185,11 @@ export const Gigs: React.FC<GigsProps> = ({ gigs: allGigs, setGigs, venues: allV
 
 // --- Sub-Components ---
 
-const GigPipeline: React.FC<{ gigs: Gig[], setGigs: React.Dispatch<React.SetStateAction<Gig[]>> }> = ({ gigs, setGigs }) => {
+const GigPipeline: React.FC<{ gigs: Gig[], setGigs: React.Dispatch<React.SetStateAction<Gig[]>>, onSelectGig: (gig: Gig) => void }> = ({ gigs, setGigs, onSelectGig }) => {
     const columns = ['Lead', 'Offered', 'Confirmed', 'Done'];
     
-    const updateStatus = (gigId: string, newStatus: Gig['status']) => {
+    const updateStatus = (e: React.MouseEvent, gigId: string, newStatus: Gig['status']) => {
+        e.stopPropagation();
         setGigs(prev => prev.map(g => g.id === gigId ? { ...g, status: newStatus } : g));
     };
 
@@ -171,14 +200,14 @@ const GigPipeline: React.FC<{ gigs: Gig[], setGigs: React.Dispatch<React.SetStat
                     <h3 className="font-bold mb-4 text-center border-b border-gray-700 pb-2">{status}</h3>
                     <div className="space-y-3">
                         {gigs.filter(g => g.status === status).map(gig => (
-                            <div key={gig.id} className="bg-gray-800 p-3 rounded-lg shadow-md border-l-4 border-purple-500">
+                            <div key={gig.id} onClick={() => onSelectGig(gig)} className="bg-gray-800 p-3 rounded-lg shadow-md border-l-4 border-purple-500 cursor-pointer hover:bg-gray-750 transition-colors">
                                 <p className="font-bold text-sm text-white">{gig.eventName}</p>
                                 <p className="text-xs text-gray-400 mb-2">{new Date(gig.date).toLocaleDateString()} @ {gig.location}</p>
                                 <div className="flex justify-between items-center">
                                     <span className="text-xs font-bold text-green-400">${gig.fee}</span>
                                     <div className="flex gap-1">
-                                        {status !== 'Lead' && <button onClick={() => updateStatus(gig.id, columns[columns.indexOf(status)-1] as any)} className="text-xs bg-gray-700 p-1 rounded hover:bg-gray-600">&lt;</button>}
-                                        {status !== 'Done' && <button onClick={() => updateStatus(gig.id, columns[columns.indexOf(status)+1] as any)} className="text-xs bg-gray-700 p-1 rounded hover:bg-gray-600">&gt;</button>}
+                                        {status !== 'Lead' && <button onClick={(e) => updateStatus(e, gig.id, columns[columns.indexOf(status)-1] as any)} className="text-xs bg-gray-700 p-1 rounded hover:bg-gray-600">&lt;</button>}
+                                        {status !== 'Done' && <button onClick={(e) => updateStatus(e, gig.id, columns[columns.indexOf(status)+1] as any)} className="text-xs bg-gray-700 p-1 rounded hover:bg-gray-600">&gt;</button>}
                                     </div>
                                 </div>
                             </div>
@@ -187,6 +216,336 @@ const GigPipeline: React.FC<{ gigs: Gig[], setGigs: React.Dispatch<React.SetStat
                     </div>
                 </div>
             ))}
+        </div>
+    );
+};
+
+const GigDetailModal: React.FC<{ 
+    gig: Gig; 
+    activeBand: BandProfile;
+    setInvoices?: React.Dispatch<React.SetStateAction<Invoice[]>>;
+    onClose: () => void; 
+    onUpdate: (gig: Gig) => void;
+    onDelete: (id: string) => void;
+    onOpenEmail: () => void;
+}> = ({ gig, activeBand, setInvoices, onClose, onUpdate, onDelete, onOpenEmail }) => {
+    const [edited, setEdited] = useState<Gig>(gig);
+
+    const handleSave = () => {
+        onUpdate(edited);
+        onClose();
+    };
+
+    const handleGenerateInvoice = () => {
+        if (!setInvoices) return;
+
+        const newInvoice: Invoice = {
+            id: `inv-${Date.now()}`,
+            transactionId: '',
+            bandId: gig.bandId,
+            invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
+            invoiceDate: new Date().toISOString().split('T')[0],
+            dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            status: 'Draft',
+            issuer: {
+                name: activeBand?.name || 'Band Name',
+                address: 'Band Address',
+                taxId: 'TAX-ID-123',
+                bankDetails: 'Bank Details'
+            },
+            recipient: {
+                name: gig.location,
+                address: 'Venue Address'
+            },
+            items: [
+                {
+                    description: `Performance Fee: ${gig.eventName}`,
+                    quantity: 1,
+                    unitPrice: gig.fee || 0
+                }
+            ],
+            total: gig.fee || 0,
+            notes: `Gig Date: ${gig.date}. ${gig.notes || ''}`
+        };
+
+        setInvoices(prev => [...prev, newInvoice]);
+        alert(`Invoice ${newInvoice.invoiceNumber} generated successfully!`);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+                <div className="p-6 border-b border-gray-800 flex justify-between items-center sticky top-0 bg-gray-900 z-10">
+                    <h2 className="text-2xl font-bold text-white">Gig Details</h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+                        <PlusIcon className="w-6 h-6 rotate-45" />
+                    </button>
+                </div>
+
+                <div className="p-6 space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Event Name</label>
+                            <input 
+                                type="text" 
+                                value={edited.eventName} 
+                                onChange={e => setEdited({...edited, eventName: e.target.value})}
+                                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-purple-500 outline-none"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Status</label>
+                            <select 
+                                value={edited.status} 
+                                onChange={e => setEdited({...edited, status: e.target.value as any})}
+                                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-purple-500 outline-none"
+                            >
+                                <option value="Lead">Lead</option>
+                                <option value="Offered">Offered</option>
+                                <option value="Confirmed">Confirmed</option>
+                                <option value="Done">Done</option>
+                                <option value="Cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Date</label>
+                            <input 
+                                type="date" 
+                                value={edited.date} 
+                                onChange={e => setEdited({...edited, date: e.target.value})}
+                                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-purple-500 outline-none"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Fee ($)</label>
+                            <input 
+                                type="number" 
+                                value={edited.fee} 
+                                onChange={e => setEdited({...edited, fee: Number(e.target.value)})}
+                                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-purple-500 outline-none"
+                            />
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Location</label>
+                            <input 
+                                type="text" 
+                                value={edited.location} 
+                                onChange={e => setEdited({...edited, location: e.target.value})}
+                                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-purple-500 outline-none"
+                            />
+                        </div>
+                        {edited.headlinerArtist && (
+                            <div className="space-y-2 md:col-span-2">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Headliner Artist</label>
+                                <input 
+                                    type="text" 
+                                    value={edited.headlinerArtist} 
+                                    onChange={e => setEdited({...edited, headlinerArtist: e.target.value})}
+                                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-purple-500 outline-none"
+                                />
+                            </div>
+                        )}
+                        <div className="space-y-2 md:col-span-2">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Notes</label>
+                            <textarea 
+                                value={edited.notes} 
+                                onChange={e => setEdited({...edited, notes: e.target.value})}
+                                rows={4}
+                                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-purple-500 outline-none resize-none"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-4 pt-4 border-t border-gray-800">
+                        <button onClick={onOpenEmail} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold transition-colors">
+                            <MailIcon className="w-4 h-4" /> Outreach Email
+                        </button>
+                        <button onClick={handleGenerateInvoice} className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-bold transition-colors">
+                            <FileTextIcon className="w-4 h-4" /> Generate Invoice
+                        </button>
+                        <button onClick={() => onDelete(gig.id)} className="flex items-center gap-2 bg-red-900/30 hover:bg-red-900/50 text-red-400 px-4 py-2 rounded-lg font-bold transition-colors ml-auto">
+                            <TrashIcon className="w-4 h-4" /> Delete Gig
+                        </button>
+                    </div>
+                </div>
+
+                <div className="p-6 border-t border-gray-800 flex justify-end gap-4 sticky bottom-0 bg-gray-900 z-10">
+                    <button onClick={onClose} className="px-6 py-2 text-gray-400 hover:text-white font-bold transition-colors">Cancel</button>
+                    <button onClick={handleSave} className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-2 rounded-lg font-bold transition-colors shadow-lg shadow-purple-900/20">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const GigEmailModal: React.FC<{ 
+    gig: Gig; 
+    bandProfile: BandProfile;
+    onClose: () => void;
+    emailTemplates?: EmailTemplate[];
+    setEmailTemplates?: React.Dispatch<React.SetStateAction<EmailTemplate[]>>;
+}> = ({ gig, bandProfile, onClose, emailTemplates, setEmailTemplates }) => {
+    const [tone, setTone] = useState<EmailTone>('Professional');
+    const [length, setLength] = useState<EmailLength>('Standard');
+    const [customPrompt, setCustomPrompt] = useState('');
+    const [generatedEmail, setGeneratedEmail] = useState('');
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+
+    const handleGenerate = async () => {
+        setIsGenerating(true);
+        try {
+            const email = await generateGigEmail(gig, bandProfile, tone, length, customPrompt);
+            setGeneratedEmail(email);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handleSaveTemplate = async () => {
+        if (!generatedEmail || !setEmailTemplates) return;
+        setIsSavingTemplate(true);
+        try {
+            const templateBody = await createEmailTemplate(generatedEmail, bandProfile);
+            const newTemplate: EmailTemplate = {
+                id: `temp-${Date.now()}`,
+                name: `Booking: ${gig.eventName} (${tone})`,
+                body: templateBody,
+                bandId: bandProfile.id,
+                category: 'Booking'
+            };
+            setEmailTemplates(prev => [...prev, newTemplate]);
+            alert("Template saved successfully! You can find it in the Campaigns section.");
+        } catch (error) {
+            console.error(error);
+            alert("Failed to save template.");
+        } finally {
+            setIsSavingTemplate(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-[60] backdrop-blur-md">
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+                <div className="p-6 border-b border-gray-800 flex justify-between items-center bg-gray-900">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-600/20 rounded-lg">
+                            <MailIcon className="w-6 h-6 text-blue-400" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-white">AI Outreach Assistant</h2>
+                    </div>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+                        <PlusIcon className="w-6 h-6 rotate-45" />
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+                    {/* Controls */}
+                    <div className="w-full md:w-80 p-6 border-r border-gray-800 space-y-6 overflow-y-auto bg-gray-900/50">
+                        <div className="space-y-4">
+                            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Email Settings</h3>
+                            
+                            <div className="space-y-2">
+                                <label className="text-xs text-gray-500 font-bold">Tone</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {(['Professional', 'Casual', 'Enthusiastic', 'Minimalist'] as EmailTone[]).map(t => (
+                                        <button 
+                                            key={t}
+                                            onClick={() => setTone(t)}
+                                            className={`px-2 py-1.5 rounded text-xs font-bold transition-all ${tone === t ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                                        >
+                                            {t}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs text-gray-500 font-bold">Length</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {(['Brief', 'Standard', 'Detailed'] as EmailLength[]).map(l => (
+                                        <button 
+                                            key={l}
+                                            onClick={() => setLength(l)}
+                                            className={`px-2 py-1.5 rounded text-xs font-bold transition-all ${length === l ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                                        >
+                                            {l}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs text-gray-500 font-bold">Custom Instructions</label>
+                                <textarea 
+                                    value={customPrompt}
+                                    onChange={e => setCustomPrompt(e.target.value)}
+                                    placeholder="e.g. Mention we're touring with a similar band..."
+                                    className="w-full bg-gray-800 border border-gray-700 rounded-lg p-3 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none resize-none h-24"
+                                />
+                            </div>
+
+                            <button 
+                                onClick={handleGenerate}
+                                disabled={isGenerating}
+                                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/20"
+                            >
+                                {isGenerating ? (
+                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                ) : (
+                                    <WandIcon className="w-5 h-5" />
+                                )}
+                                {isGenerating ? 'Drafting...' : 'Generate Draft'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Preview */}
+                    <div className="flex-1 p-6 flex flex-col bg-gray-950/50 relative">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Email Draft</h3>
+                            {generatedEmail && (
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={() => { navigator.clipboard.writeText(generatedEmail); alert('Copied to clipboard!'); }}
+                                        className="text-xs text-gray-400 hover:text-white flex items-center gap-1 bg-gray-800 px-2 py-1 rounded"
+                                    >
+                                        Copy
+                                    </button>
+                                    <button 
+                                        onClick={handleSaveTemplate}
+                                        disabled={isSavingTemplate}
+                                        className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 bg-blue-900/20 px-2 py-1 rounded"
+                                    >
+                                        {isSavingTemplate ? 'Processing...' : 'Save as Template'}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="flex-1 bg-gray-900 border border-gray-800 rounded-xl p-6 overflow-y-auto font-serif text-lg leading-relaxed text-gray-300">
+                            {generatedEmail ? (
+                                <div className="whitespace-pre-wrap">{generatedEmail}</div>
+                            ) : (
+                                <div className="h-full flex flex-col items-center justify-center text-gray-600 space-y-4">
+                                    <MailIcon className="w-16 h-16 opacity-20" />
+                                    <p className="text-center max-w-xs">Set your preferences and click generate to create a personalized outreach email.</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {generatedEmail && (
+                            <div className="mt-4 flex justify-end">
+                                <button className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg flex items-center gap-2 transition-all shadow-lg shadow-green-900/20">
+                                    <SendIcon className="w-4 h-4" /> Send Email
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };

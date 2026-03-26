@@ -1,11 +1,19 @@
 
+export type CronLog = {
+  id: string;
+  timestamp: string;
+  status: 'success' | 'failure';
+  message: string;
+  serverTime?: any;
+};
+
 export type Page = 
   'dashboard' | 'projects' | 'calendar' | 'financials' | 
   'press' | 'merch' | 'releases' | 'tours' | 'setlists' | 
   'collaborators' | 'resources' | 'settings' | 'production' |
   'funding' | 'festivals' | 'goals' | 'media' | 'epk' |
   'royalties' | 'gigs' | 'campaigns' | 'label' | 'reports' | 'fanbase' |
-  'stage' | 'radio' | 'social' | 'sound-match' | 'invoices' | 'residencies';
+  'stage' | 'radio' | 'social' | 'sound-match' | 'invoices' | 'residencies' | 'system-status';
 
 export enum TaskStatus {
   ToDo = 'To Do',
@@ -840,4 +848,12 @@ export interface SoundMatchOpportunity {
     country: string;
     url: string; // Article, station URL
     sourceArtist: string; // The artist that was the source of this find
+}
+
+export interface EmailTemplate {
+    id: string;
+    name: string;
+    body: string;
+    bandId: string;
+    category: 'Booking' | 'Press' | 'Radio' | 'Label' | 'Fan' | 'Other';
 }

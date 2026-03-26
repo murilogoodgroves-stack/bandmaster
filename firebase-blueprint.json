@@ -1,0 +1,32 @@
+{
+  "entities": {
+    "CronLog": {
+      "title": "Cron Job Log",
+      "description": "Records of cron job executions",
+      "type": "object",
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the cron job ran"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["success", "failure"],
+          "description": "The result of the cron job"
+        },
+        "message": {
+          "type": "string",
+          "description": "Details about the execution"
+        }
+      },
+      "required": ["timestamp", "status"]
+    }
+  },
+  "firestore": {
+    "/cron_logs/{logId}": {
+      "schema": "CronLog",
+      "description": "Collection of cron job execution logs"
+    }
+  }
+}
