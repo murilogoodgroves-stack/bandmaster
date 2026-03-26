@@ -4,7 +4,7 @@ import type { Page, User, BandProfile } from '../types';
 import { 
     DashboardIcon, ProjectsIcon, CalendarIcon, FinancialsIcon, PressIcon, MerchIcon, ReleaseIcon, TourIcon, SetlistIcon, CollaboratorIcon, ResourcesIcon, SettingsIcon,
     ProductionIcon, FundingIcon, FestivalIcon, GoalsIcon, MediaArchiveIcon, EPKIcon, BookingIcon, RoyaltiesIcon, MailIcon, BuildingIcon, BarChartIcon, UsersIcon, PlusIcon, EditIcon, StageIcon, RadioIcon, MegaphoneIcon,
-    SoundMatchIcon, InvoiceIcon, SaveIcon, SlashIcon, HomeIcon, TerminalIcon
+    SoundMatchIcon, InvoiceIcon, SaveIcon, SlashIcon, HomeIcon, TerminalIcon, ChevronDownIcon
 } from './icons';
 
 interface SidebarProps {
@@ -22,29 +22,44 @@ const BandSwitcher: React.FC<{
     activeBandId: string;
     onBandChange: (id: string) => void;
     onNewBandClick: () => void;
-}> = ({ bands, activeBandId, onBandChange, onNewBandClick }) => (
+    isAdmin: boolean;
+}> = ({ bands, activeBandId, onBandChange, onNewBandClick, isAdmin }) => (
     <div className="px-2 mb-6">
         <div className="flex items-center justify-between mb-1">
-            <label htmlFor="band-switcher" className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">Current Band</label>
-            <button 
-                onClick={onNewBandClick}
-                className="p-1 hover:bg-brand-accent/20 rounded-full text-brand-accent transition-colors"
-                title="Create new band"
-            >
-                <PlusIcon className="w-3.5 h-3.5" />
-            </button>
+            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">
+                {isAdmin ? 'Switch Band' : 'Current Band'}
+            </label>
         </div>
-        <select
-            id="band-switcher"
-            value={activeBandId}
-            onChange={(e) => onBandChange(e.target.value)}
-            className="w-full bg-brand-bg-card/50 text-white text-sm p-2 rounded-lg border border-brand-border focus:outline-none focus:ring-1 focus:ring-brand-accent/50 transition-all"
-            aria-label="Switch active band"
-        >
-            {bands.map(band => (
-                <option key={band.id} value={band.id}>{band.name}</option>
-            ))}
-        </select>
+        <div className="flex items-center gap-2">
+            <div className="relative flex-grow">
+                <select
+                    id="band-switcher"
+                    value={activeBandId}
+                    onChange={(e) => onBandChange(e.target.value)}
+                    disabled={!isAdmin && bands.length <= 1}
+                    className={`w-full bg-brand-bg-card/50 text-white text-sm font-medium p-2 pr-8 rounded-lg border border-brand-border focus:outline-none focus:ring-1 focus:ring-brand-accent/50 transition-all appearance-none ${isAdmin || bands.length > 1 ? 'cursor-pointer hover:border-brand-accent/50' : 'cursor-default'}`}
+                    aria-label="Switch active band"
+                >
+                    {bands.map(band => (
+                        <option key={band.id} value={band.id}>{band.name}</option>
+                    ))}
+                </select>
+                {(isAdmin || bands.length > 1) && (
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                        <ChevronDownIcon className="h-4 w-4 text-gray-500" />
+                    </div>
+                )}
+            </div>
+            {isAdmin && (
+                <button 
+                    onClick={onNewBandClick}
+                    className="p-2 bg-brand-accent/10 hover:bg-brand-accent/20 rounded-lg text-brand-accent transition-colors flex-shrink-0 border border-brand-accent/20"
+                    title="Create new band"
+                >
+                    <PlusIcon className="w-4 h-4" />
+                </button>
+            )}
+        </div>
     </div>
 );
 
@@ -79,11 +94,12 @@ const NavSectionHeader: React.FC<{ title: string }> = ({ title }) => (
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBandId, onBandChange, onNewBandClick, users, setUsers }) => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  const overviewNavItems = [
+  const managementNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon className="h-5 w-5" /> },
     { id: 'projects', label: 'Projects', icon: <ProjectsIcon className="h-5 w-5" /> },
     { id: 'calendar', label: 'Calendar', icon: <CalendarIcon className="h-5 w-5" /> },
     { id: 'reports', label: 'Reports', icon: <BarChartIcon className="h-5 w-5" /> },
+    { id: 'goals', label: 'Goals', icon: <GoalsIcon className="h-5 w-5" /> },
   ];
 
   const creativeNavItems = [
@@ -91,12 +107,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBand
     { id: 'releases', label: 'Releases', icon: <ReleaseIcon className="h-5 w-5" /> },
     { id: 'setlists', label: 'Setlists', icon: <SetlistIcon className="h-5 w-5" /> },
     { id: 'media', label: 'Media Archive', icon: <MediaArchiveIcon className="h-5 w-5" />},
+    { id: 'stage', label: 'Stage Plot', icon: <StageIcon className="h-5 w-5" /> },
   ];
 
   const liveNavItems = [
     { id: 'gigs', label: 'Gigs', icon: <BookingIcon className="h-5 w-5" /> },
     { id: 'tours', label: 'Tours', icon: <TourIcon className="h-5 w-5" /> },
-    { id: 'stage', label: 'Stage Plot', icon: <StageIcon className="h-5 w-5" /> },
+    { id: 'residencies', label: 'Residencies', icon: <HomeIcon className="h-5 w-5" />},
+    { id: 'festivals', label: 'Festivals', icon: <FestivalIcon className="h-5 w-5" /> },
   ];
 
   const promotionNavItems = [
@@ -114,15 +132,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBand
     { id: 'invoices', label: 'Invoices', icon: <InvoiceIcon className="h-5 w-5" /> },
     { id: 'royalties', label: 'Royalties', icon: <RoyaltiesIcon className="h-5 w-5" /> },
     { id: 'merch', label: 'Merchandise', icon: <MerchIcon className="h-5 w-5" /> },
+    { id: 'funding', label: 'Funding', icon: <FundingIcon className="h-5 w-5" />},
   ];
   
   const networkNavItems = [
     { id: 'fanbase', label: 'Fanbase', icon: <UsersIcon className="h-5 w-5" /> },
     { id: 'collaborators', label: 'Collaborators', icon: <CollaboratorIcon className="h-5 w-5" /> },
-    { id: 'goals', label: 'Goals', icon: <GoalsIcon className="h-5 w-5" /> },
-    { id: 'funding', label: 'Funding', icon: <FundingIcon className="h-5 w-5" />},
-    { id: 'residencies', label: 'Residencies', icon: <HomeIcon className="h-5 w-5" />},
-    { id: 'festivals', label: 'Festivals', icon: <FestivalIcon className="h-5 w-5" /> },
   ]
 
   const systemNavItems = [
@@ -161,32 +176,50 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBand
     {isMobileOpen && <div className="fixed inset-0 bg-black/50 z-[55] lg:hidden" onClick={() => setIsMobileOpen(false)} />}
 
     <aside className={`flex flex-col w-64 bg-brand-bg-sidebar text-gray-100 min-h-screen p-4 fixed lg:sticky top-0 h-screen overflow-y-auto border-r border-brand-border z-[60] transition-transform duration-300 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-      <div className="flex items-center mb-6 flex-shrink-0 px-2 pt-2 lg:pt-0 pl-10 lg:pl-2">
-        <h1 className="text-2xl font-medium text-white tracking-widest">BAND<span className="text-brand-accent">HQ</span></h1>
+      <div className="flex items-center mb-6 flex-shrink-0 px-2 pt-2 lg:pt-0 pl-10 lg:pl-2 justify-between">
+        <div className="flex flex-col">
+            <h1 className="text-xl font-bold text-white tracking-tight leading-none truncate max-w-[150px]">
+                {bands.find(b => b.id === activeBandId)?.name || 'Band'}
+            </h1>
+            <span className="text-[10px] text-brand-accent font-bold uppercase tracking-[0.3em] mt-1">Management HQ</span>
+        </div>
+        {currentUser.systemRole === 'Admin' && (
+            <button 
+                onClick={onNewBandClick}
+                className="p-1.5 bg-brand-accent/10 hover:bg-brand-accent/20 rounded-full text-brand-accent transition-colors border border-brand-accent/20 ml-2"
+                title="Create new band"
+            >
+                <PlusIcon className="w-3.5 h-3.5" />
+            </button>
+        )}
       </div>
 
-      {currentUser.systemRole === 'Admin' && (
-        <BandSwitcher bands={bands} activeBandId={activeBandId} onBandChange={onBandChange} onNewBandClick={onNewBandClick} />
-      )}
+      <BandSwitcher 
+        bands={bands} 
+        activeBandId={activeBandId} 
+        onBandChange={onBandChange} 
+        onNewBandClick={onNewBandClick} 
+        isAdmin={currentUser.systemRole === 'Admin'} 
+      />
 
       <nav className="flex-grow">
-        <NavSectionHeader title="Overview" />
+        <NavSectionHeader title="Management" />
         <ul>
-          {overviewNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+          {managementNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
-        <NavSectionHeader title="Creative" />
+        <NavSectionHeader title="Creative & Media" />
         <ul>
             {creativeNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
-        <NavSectionHeader title="Live" />
+        <NavSectionHeader title="Booking & Live" />
         <ul>
             {liveNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
-        <NavSectionHeader title="Promotion" />
+        <NavSectionHeader title="Promotion & Outreach" />
         <ul>
             {promotionNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
-        <NavSectionHeader title="Business" />
+        <NavSectionHeader title="Business & Finance" />
         <ul>
             {businessNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>

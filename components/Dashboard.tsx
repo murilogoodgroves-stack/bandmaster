@@ -47,42 +47,35 @@ export const Dashboard: React.FC<DashboardProps> = ({
     const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
     const [lastSearches] = useLocalStorage<LastSearchParams>(`lastSearches_${activeBandId}`, {});
 
-    useEffect(() => {
-        const generateSuggestions = async () => {
-            setIsLoadingSuggestions(true);
-            const newSuggestions: WizardSuggestion[] = [];
-            const tasksToRun: (() => Promise<void>)[] = [];
+    const generateSuggestions = async () => {
+        setIsLoadingSuggestions(true);
+        const newSuggestions: WizardSuggestion[] = [];
+        const tasksToRun: (() => Promise<void>)[] = [];
 
-            // 1. Labels
-            if (lastSearches.labels) {
-                tasksToRun.push(async () => {
-                    const newLabels = await findLabelContacts(
-                        lastSearches.labels!.genre, 
-                        lastSearches.labels!.country, 
-                        lastSearches.labels!.size, 
-                        lastSearches.labels!.labelName, 
-                        bandLabels,
-                        lastSearches.labels!.similarToLabel || '' 
-                    );
-                    if (newLabels.length > 0) {
-                        const searchText = lastSearches.labels?.similarToLabel ? `labels similar to '${lastSearches.labels.similarToLabel}'` : `'${lastSearches.labels?.genre || lastSearches.labels?.labelName}'`;
-                        newSuggestions.push({ id: `sugg-labels-${Date.now()}`, type: 'new_labels', text: `Found ${newLabels.length} new record label(s) matching your search for ${searchText}.`, action: { page: 'label', data: newLabels } });
-                    }
-                });
-            }
-
-            // Execute all background tasks
-            await Promise.all(tasksToRun.map(t => t()));
-            
-            setSuggestions(newSuggestions);
-            setIsLoadingSuggestions(false);
-        };
-
-        // Only run if we have some search history
-        if (Object.keys(lastSearches).length > 0) {
-            generateSuggestions();
+        // 1. Labels
+        if (lastSearches.labels) {
+            tasksToRun.push(async () => {
+                const newLabels = await findLabelContacts(
+                    lastSearches.labels!.genre, 
+                    lastSearches.labels!.country, 
+                    lastSearches.labels!.size, 
+                    lastSearches.labels!.labelName, 
+                    bandLabels,
+                    lastSearches.labels!.similarToLabel || '' 
+                );
+                if (newLabels.length > 0) {
+                    const searchText = lastSearches.labels?.similarToLabel ? `labels similar to '${lastSearches.labels.similarToLabel}'` : `'${lastSearches.labels?.genre || lastSearches.labels?.labelName}'`;
+                    newSuggestions.push({ id: `sugg-labels-${Date.now()}`, type: 'new_labels', text: `Found ${newLabels.length} new record label(s) matching your search for ${searchText}.`, action: { page: 'label', data: newLabels } });
+                }
+            });
         }
-    }, [lastSearches, activeBandId]);
+
+        // Execute all background tasks
+        await Promise.all(tasksToRun.map(t => t()));
+        
+        setSuggestions(newSuggestions);
+        setIsLoadingSuggestions(false);
+    };
 
     const handleSuggestionClick = (suggestion: WizardSuggestion) => {
         if (suggestion.action.data) {
@@ -119,22 +112,41 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <h1 className="text-4xl font-bold mb-6">Dashboard</h1>
             
             {/* AI Suggestions Area */}
-            {(suggestions.length > 0 || isLoadingSuggestions) && (
+            {(suggestions.length > 0 || isLoadingSuggestions || Object.keys(lastSearches).length > 0) && (
                 <div className="bg-purple-900/40 border border-purple-500/30 p-4 rounded-xl mb-8 animate-fade-in">
-                    <h3 className="text-lg font-bold text-purple-300 mb-3 flex items-center">
-                        {isLoadingSuggestions ? <RefreshCwIcon className="w-5 h-5 mr-2 animate-spin"/> : <BotIcon className="w-5 h-5 mr-2"/>}
-                        {isLoadingSuggestions ? "AI is looking for new opportunities..." : "New Opportunities Found"}
-                    </h3>
-                    <div className="space-y-2">
-                        {suggestions.map(s => (
-                            <div key={s.id} className="bg-gray-800 p-3 rounded-lg flex justify-between items-center">
-                                <p className="text-sm text-gray-200">{s.text}</p>
-                                <button onClick={() => handleSuggestionClick(s)} className="text-xs bg-purple-600 hover:bg-purple-500 text-white font-bold py-1.5 px-3 rounded-md flex items-center">
-                                    View <ArrowRightIcon className="w-3 h-3 ml-1"/>
-                                </button>
-                            </div>
-                        ))}
+                    <div className="flex justify-between items-center mb-3">
+                        <h3 className="text-lg font-bold text-purple-300 flex items-center">
+                            {isLoadingSuggestions ? <RefreshCwIcon className="w-5 h-5 mr-2 animate-spin"/> : <BotIcon className="w-5 h-5 mr-2"/>}
+                            {isLoadingSuggestions ? "AI is looking for new opportunities..." : "AI Opportunities"}
+                        </h3>
+                        {suggestions.length === 0 && !isLoadingSuggestions && Object.keys(lastSearches).length > 0 && (
+                            <button 
+                                onClick={generateSuggestions}
+                                className="text-xs bg-purple-600 hover:bg-purple-500 text-white font-bold py-1.5 px-3 rounded-md flex items-center transition-colors"
+                            >
+                                <RefreshCwIcon className="w-3 h-3 mr-1.5"/> Generate Suggestions
+                            </button>
+                        )}
                     </div>
+                    
+                    {suggestions.length > 0 ? (
+                        <div className="space-y-2">
+                            {suggestions.map(s => (
+                                <div key={s.id} className="bg-gray-800 p-3 rounded-lg flex justify-between items-center">
+                                    <p className="text-sm text-gray-200">{s.text}</p>
+                                    <button onClick={() => handleSuggestionClick(s)} className="text-xs bg-purple-600 hover:bg-purple-500 text-white font-bold py-1.5 px-3 rounded-md flex items-center">
+                                        View <ArrowRightIcon className="w-3 h-3 ml-1"/>
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    ) : !isLoadingSuggestions && (
+                        <p className="text-sm text-gray-400 italic">
+                            {Object.keys(lastSearches).length > 0 
+                                ? "Click 'Generate Suggestions' to see how AI can help based on your recent activity."
+                                : "Start searching for labels or press to see AI suggestions here."}
+                        </p>
+                    )}
                 </div>
             )}
 

@@ -4,7 +4,7 @@ import useLocalStorage from '../hooks/useLocalStorage';
 import { researchFestivals, getEuropeanIndieFestivals } from '../services/aiService';
 import type { Festival, FestivalOpportunity, CalendarEvent, FestivalDirectoryEntry, User } from '../types';
 import { EventType } from '../types';
-import { SearchIcon, ExternalLinkIcon, PlusIcon, TrashIcon, SaveIcon, CalendarIcon, CheckCircleIcon } from './icons';
+import { SearchIcon, ExternalLinkIcon, PlusIcon, TrashIcon, SaveIcon, CalendarIcon, CheckCircleIcon, BotIcon, RefreshCwIcon } from './icons';
 import { Tip } from './Tip';
 
 const FestivalCard: React.FC<{ 
@@ -123,26 +123,25 @@ export const Festivals: React.FC<{
     const [monthFilter, setMonthFilter] = useState<number | 'all'>('all');
 
 
+    const fetchDirectory = async () => {
+        const now = Date.now();
+        setIsDirectoryLoading(true);
+        const taskId = `task-fest-dir-${Date.now()}`;
+        window.dispatchEvent(new CustomEvent('start-task', { detail: { id: taskId, name: 'Updating festival directory...', estimatedDuration: 45 } }));
+        try {
+            const festivals = await getEuropeanIndieFestivals();
+            setDirectoryFestivals({ data: festivals, timestamp: now });
+        } catch (error) {
+            console.error("Failed to fetch festival directory:", error);
+        } finally {
+            window.dispatchEvent(new CustomEvent('end-task', { detail: { id: taskId } }));
+            setIsDirectoryLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchDirectory = async () => {
-            const now = Date.now();
-            const oneDay = 24 * 60 * 60 * 1000;
-            if (now - directoryFestivals.timestamp > oneDay || directoryFestivals.data.length === 0) {
-                 setIsDirectoryLoading(true);
-                 const taskId = `task-fest-dir-${Date.now()}`;
-                 window.dispatchEvent(new CustomEvent('start-task', { detail: { id: taskId, name: 'Updating festival directory...', estimatedDuration: 45 } }));
-                 try {
-                    const festivals = await getEuropeanIndieFestivals();
-                    setDirectoryFestivals({ data: festivals, timestamp: now });
-                } catch (error) {
-                    console.error("Failed to fetch festival directory:", error);
-                } finally {
-                    window.dispatchEvent(new CustomEvent('end-task', { detail: { id: taskId } }));
-                    setIsDirectoryLoading(false);
-                }
-            }
-        };
-        fetchDirectory();
+        // Initial load from cache is already handled by useLocalStorage default value
+        // We don't want to auto-fetch anymore to save tokens
     }, []);
 
     const filteredDirectory = useMemo(() => {
@@ -462,18 +461,31 @@ export const Festivals: React.FC<{
             {/* European Indie Festival Directory */}
             <div className="bg-brand-bg-card p-6 rounded-xl shadow-lg mt-8">
                 <div className="flex justify-between items-center mb-4">
-                     <h3 className="text-xl font-medium text-white">European Indie Festival Directory</h3>
-                     <div>
-                        <label htmlFor="month-filter" className="text-sm text-gray-400 mr-2">Filter by month:</label>
-                        <select id="month-filter" value={monthFilter} onChange={e => setMonthFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))} className="bg-brand-bg-content text-white p-2 rounded-lg text-sm">
-                            <option value="all">All Months</option>
-                            {months.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
-                        </select>
+                     <h3 className="text-xl font-medium text-white flex items-center">
+                        <BotIcon className="w-6 h-6 mr-3 text-purple-400" />
+                        European Indie Festival Directory
+                     </h3>
+                     <div className="flex items-center gap-4">
+                        <button 
+                            onClick={fetchDirectory}
+                            disabled={isDirectoryLoading}
+                            className="text-xs bg-purple-600 hover:bg-purple-500 text-white font-bold py-1.5 px-3 rounded-md flex items-center transition-colors disabled:bg-gray-600"
+                        >
+                            <RefreshCwIcon className={`w-3 h-3 mr-1.5 ${isDirectoryLoading ? 'animate-spin' : ''}`}/> 
+                            {isDirectoryLoading ? 'Updating...' : 'Refresh Directory'}
+                        </button>
+                        <div>
+                            <label htmlFor="month-filter" className="text-sm text-gray-400 mr-2">Filter by month:</label>
+                            <select id="month-filter" value={monthFilter} onChange={e => setMonthFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))} className="bg-brand-bg-content text-white p-2 rounded-lg text-sm">
+                                <option value="all">All Months</option>
+                                {months.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+                            </select>
+                        </div>
                      </div>
                 </div>
                  {isDirectoryLoading ? (
                      <div className="text-center text-gray-400 py-8"><p>AI is populating the festival directory... Check progress at the top.</p></div>
-                 ) : (
+                 ) : filteredDirectory.length > 0 ? (
                      <div className="max-h-[500px] overflow-y-auto pr-2 space-y-3">
                         {filteredDirectory.map((festival, index) => {
                             const isTracked = savedFestivalNames.has(`${festival.name}-${festival.country}`);
@@ -505,6 +517,16 @@ export const Festivals: React.FC<{
                             </div>
                         )})}
                      </div>
+                 ) : (
+                    <div className="text-center py-12 border-2 border-dashed border-gray-700 rounded-xl">
+                        <p className="text-gray-500 italic mb-4">The directory is currently empty.</p>
+                        <button 
+                            onClick={fetchDirectory}
+                            className="bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 px-6 rounded-lg transition-colors"
+                        >
+                            Fetch Festival Directory
+                        </button>
+                    </div>
                  )}
             </div>
 

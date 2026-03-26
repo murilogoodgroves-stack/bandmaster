@@ -103,7 +103,7 @@ export const Reports: React.FC<{
     const projects = useMemo(() => allProjects.filter(p => p.bandId === activeBandId), [allProjects, activeBandId]);
 
     const [insights, setInsights] = useState<Insight[]>([]);
-    const [isLoadingInsights, setIsLoadingInsights] = useState(true);
+    const [isLoadingInsights, setIsLoadingInsights] = useState(false);
     const [isBuilderOpen, setIsBuilderOpen] = useState(false);
     const [generatedReport, setGeneratedReport] = useState<{ config: ReportConfig, data: any[] } | null>(null);
 
@@ -118,21 +118,18 @@ export const Reports: React.FC<{
         window.location.hash = hash;
     };
 
-    useEffect(() => {
-        const fetchInsights = async () => {
-            setIsLoadingInsights(true);
-            const taskId = `insights-${Date.now()}`;
-            window.dispatchEvent(new CustomEvent('start-task', { detail: { id: taskId, name: 'Generating AI insights...', estimatedDuration: 25 } }));
-            try {
-                const result = await generateReportInsights(appContext, bandProfile);
-                setInsights(result);
-            } finally {
-                setIsLoadingInsights(false);
-                window.dispatchEvent(new CustomEvent('end-task', { detail: { id: taskId } }));
-            }
-        };
-        fetchInsights();
-    }, []);
+    const fetchInsights = async () => {
+        setIsLoadingInsights(true);
+        const taskId = `insights-${Date.now()}`;
+        window.dispatchEvent(new CustomEvent('start-task', { detail: { id: taskId, name: 'Generating AI insights...', estimatedDuration: 25 } }));
+        try {
+            const result = await generateReportInsights(appContext, bandProfile);
+            setInsights(result);
+        } finally {
+            setIsLoadingInsights(false);
+            window.dispatchEvent(new CustomEvent('end-task', { detail: { id: taskId } }));
+        }
+    };
 
     const handleGenerateReport = (config: ReportConfig) => {
         let data: any[] = [];
@@ -191,14 +188,24 @@ export const Reports: React.FC<{
 
             {/* AI Insights */}
             <div className="bg-gray-800 p-6 rounded-xl mb-8">
-                <h2 className="text-2xl font-bold mb-4 flex items-center"><BotIcon className="w-6 h-6 mr-3 text-purple-400" /> AI Insights</h2>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-bold flex items-center"><BotIcon className="w-6 h-6 mr-3 text-purple-400" /> AI Insights</h2>
+                    {insights.length === 0 && !isLoadingInsights && (
+                        <button 
+                            onClick={fetchInsights}
+                            className="text-sm bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 px-4 rounded-lg flex items-center transition-colors"
+                        >
+                            <LightbulbIcon className="w-4 h-4 mr-2"/> Generate Insights
+                        </button>
+                    )}
+                </div>
                 {isLoadingInsights ? (
                     <p className="text-gray-400">Analyzing your data... check the progress bar at the top.</p>
                 ) : (
                     <div className="space-y-3">
                         {insights.length > 0 ? insights.map(insight => (
                             <InsightCard key={insight.id} insight={insight} onClick={handleInsightClick} />
-                        )) : <p className="text-gray-500">No specific insights at this time. Keep up the great work!</p>}
+                        )) : <p className="text-gray-500 italic">Click 'Generate Insights' to have AI analyze your band's performance and find opportunities.</p>}
                     </div>
                 )}
             </div>
