@@ -23,25 +23,28 @@ const BandSwitcher: React.FC<{
     onBandChange: (id: string) => void;
     onNewBandClick: () => void;
 }> = ({ bands, activeBandId, onBandChange, onNewBandClick }) => (
-    <div className="px-2 mb-4">
-        <label htmlFor="band-switcher" className="text-xs font-medium text-gray-500 uppercase tracking-wider">Current Band</label>
+    <div className="px-2 mb-6">
+        <div className="flex items-center justify-between mb-1">
+            <label htmlFor="band-switcher" className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">Current Band</label>
+            <button 
+                onClick={onNewBandClick}
+                className="p-1 hover:bg-brand-accent/20 rounded-full text-brand-accent transition-colors"
+                title="Create new band"
+            >
+                <PlusIcon className="w-3.5 h-3.5" />
+            </button>
+        </div>
         <select
             id="band-switcher"
             value={activeBandId}
             onChange={(e) => onBandChange(e.target.value)}
-            className="w-full bg-brand-bg-card text-white p-2 rounded-md mt-1 border border-brand-border focus:outline-none focus:ring-2 focus:ring-brand-accent"
+            className="w-full bg-brand-bg-card/50 text-white text-sm p-2 rounded-lg border border-brand-border focus:outline-none focus:ring-1 focus:ring-brand-accent/50 transition-all"
             aria-label="Switch active band"
         >
             {bands.map(band => (
                 <option key={band.id} value={band.id}>{band.name}</option>
             ))}
         </select>
-        <button
-            onClick={onNewBandClick}
-            className="w-full text-xs text-center mt-2 p-2 bg-brand-bg-card/50 hover:bg-brand-bg-card rounded-md text-gray-400 hover:text-white transition-colors flex items-center justify-center"
-        >
-            <PlusIcon className="w-4 h-4 mr-1"/> Create a new band
-        </button>
     </div>
 );
 
@@ -76,50 +79,55 @@ const NavSectionHeader: React.FC<{ title: string }> = ({ title }) => (
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBandId, onBandChange, onNewBandClick, users, setUsers }) => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  const mainNavItems = [
+  const overviewNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon className="h-5 w-5" /> },
     { id: 'projects', label: 'Projects', icon: <ProjectsIcon className="h-5 w-5" /> },
     { id: 'calendar', label: 'Calendar', icon: <CalendarIcon className="h-5 w-5" /> },
     { id: 'reports', label: 'Reports', icon: <BarChartIcon className="h-5 w-5" /> },
   ];
 
-  const creationNavItems = [
+  const creativeNavItems = [
     { id: 'production', label: 'Production', icon: <ProductionIcon className="h-5 w-5" /> },
     { id: 'releases', label: 'Releases', icon: <ReleaseIcon className="h-5 w-5" /> },
     { id: 'setlists', label: 'Setlists', icon: <SetlistIcon className="h-5 w-5" /> },
+    { id: 'media', label: 'Media Archive', icon: <MediaArchiveIcon className="h-5 w-5" />},
   ];
 
-  const businessNavItems = [
+  const liveNavItems = [
     { id: 'gigs', label: 'Gigs', icon: <BookingIcon className="h-5 w-5" /> },
     { id: 'tours', label: 'Tours', icon: <TourIcon className="h-5 w-5" /> },
     { id: 'stage', label: 'Stage Plot', icon: <StageIcon className="h-5 w-5" /> },
-    { id: 'merch', label: 'Merchandise', icon: <MerchIcon className="h-5 w-5" /> },
+  ];
+
+  const promotionNavItems = [
+    { id: 'campaigns', label: 'Campaigns', icon: <MailIcon className="h-5 w-5" /> },
     { id: 'press', label: 'Press Outreach', icon: <PressIcon className="h-5 w-5" /> },
     { id: 'radio', label: 'Radio Outreach', icon: <RadioIcon className="h-5 w-5" /> },
     { id: 'label', label: 'Label Reachout', icon: <BuildingIcon className="h-5 w-5" /> },
-    { id: 'campaigns', label: 'Campaigns', icon: <MailIcon className="h-5 w-5" /> },
-    { id: 'social', label: 'Social Studio', icon: <MegaphoneIcon className="h-5 w-5" /> },
-    { id: 'fanbase', label: 'Fanbase', icon: <UsersIcon className="h-5 w-5" /> },
+    { id: 'sound-match', label: 'Sound Match', icon: <SoundMatchIcon className="h-5 w-5" /> },
     { id: 'epk', label: 'EPK Generator', icon: <EPKIcon className="h-5 w-5" /> },
+    { id: 'social', label: 'Social Studio', icon: <MegaphoneIcon className="h-5 w-5" /> },
+  ];
+
+  const businessNavItems = [
     { id: 'financials', label: 'Financials', icon: <FinancialsIcon className="h-5 w-5" /> },
     { id: 'invoices', label: 'Invoices', icon: <InvoiceIcon className="h-5 w-5" /> },
     { id: 'royalties', label: 'Royalties', icon: <RoyaltiesIcon className="h-5 w-5" /> },
+    { id: 'merch', label: 'Merchandise', icon: <MerchIcon className="h-5 w-5" /> },
   ];
   
-  const growthNavItems = [
+  const networkNavItems = [
+    { id: 'fanbase', label: 'Fanbase', icon: <UsersIcon className="h-5 w-5" /> },
+    { id: 'collaborators', label: 'Collaborators', icon: <CollaboratorIcon className="h-5 w-5" /> },
     { id: 'goals', label: 'Goals', icon: <GoalsIcon className="h-5 w-5" /> },
-    { id: 'sound-match', label: 'Sound Match', icon: <SoundMatchIcon className="h-5 w-5" /> },
     { id: 'funding', label: 'Funding', icon: <FundingIcon className="h-5 w-5" />},
     { id: 'residencies', label: 'Residencies', icon: <HomeIcon className="h-5 w-5" />},
     { id: 'festivals', label: 'Festivals', icon: <FestivalIcon className="h-5 w-5" /> },
-    { id: 'collaborators', label: 'Collaborators', icon: <CollaboratorIcon className="h-5 w-5" /> },
-    
   ]
 
-  const managementNavItems = [
-    { id: 'media', label: 'Media Archive', icon: <MediaArchiveIcon className="h-5 w-5" />},
-    { id: 'resources', label: 'Resources', icon: <ResourcesIcon className="h-5 w-5" /> },
+  const systemNavItems = [
     { id: 'system-status', label: 'System Status', icon: <TerminalIcon className="h-5 w-5" /> },
+    { id: 'resources', label: 'Resources', icon: <ResourcesIcon className="h-5 w-5" /> },
   ];
   
   const settingsItem = { id: 'settings', label: 'Settings', icon: <SettingsIcon className="h-5 w-5" /> };
@@ -161,33 +169,34 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBand
         <BandSwitcher bands={bands} activeBandId={activeBandId} onBandChange={onBandChange} onNewBandClick={onNewBandClick} />
       )}
 
-      <div className="px-2 mb-6">
-        <div className="w-full flex items-center justify-center text-xs p-2 bg-brand-bg-card/50 rounded-md text-gray-400 h-10">
-            <SaveIcon className="w-4 h-4 mr-2 text-green-400" />
-            <span>All changes are saved automatically.</span>
-        </div>
-      </div>
-
       <nav className="flex-grow">
-        <NavSectionHeader title="Core" />
+        <NavSectionHeader title="Overview" />
         <ul>
-          {mainNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+          {overviewNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
-        <NavSectionHeader title="Creation" />
+        <NavSectionHeader title="Creative" />
         <ul>
-            {creationNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+            {creativeNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+        </ul>
+        <NavSectionHeader title="Live" />
+        <ul>
+            {liveNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+        </ul>
+        <NavSectionHeader title="Promotion" />
+        <ul>
+            {promotionNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
         <NavSectionHeader title="Business" />
         <ul>
             {businessNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
-        <NavSectionHeader title="Growth" />
+        <NavSectionHeader title="Network" />
         <ul>
-            {growthNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+            {networkNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
-         <NavSectionHeader title="Management" />
+         <NavSectionHeader title="System" />
         <ul>
-            {managementNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+            {systemNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
       </nav>
       <div className="flex-shrink-0">

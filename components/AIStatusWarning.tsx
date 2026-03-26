@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { subscribeToAIStatus, AIStatus } from '../services/aiService';
-import { AlertTriangleIcon, InfoIcon, CheckCircleIcon } from './icons';
+import { AlertTriangleIcon, InfoIcon, CheckCircleIcon, SlashIcon } from './icons';
 
 export const AIStatusWarning: React.FC = () => {
     const [status, setStatus] = useState<AIStatus | null>(null);
@@ -29,38 +29,27 @@ export const AIStatusWarning: React.FC = () => {
     const isError = status.status === 'error';
 
     return (
-        <div className={`fixed top-4 right-4 z-[100] max-w-md animate-in fade-in slide-in-from-top-4 duration-300`}>
-            <div className={`p-4 rounded-lg border shadow-lg flex items-start gap-3 ${
+        <div className={`fixed bottom-4 right-20 z-[100] animate-in fade-in slide-in-from-bottom-4 duration-500`}>
+            <div className={`px-3 py-1.5 rounded-full border shadow-sm flex items-center gap-2 backdrop-blur-md ${
                 isError 
-                ? 'bg-red-500/10 border-red-500/50 text-red-200' 
-                : 'bg-amber-500/10 border-amber-500/50 text-amber-200'
+                ? 'bg-red-500/20 border-red-500/50 text-red-200' 
+                : 'bg-amber-500/20 border-amber-500/50 text-amber-200'
             }`}>
-                <div className="mt-0.5">
-                    {isError ? (
-                        <AlertTriangleIcon className="h-5 w-5 text-red-400" />
-                    ) : (
-                        <InfoIcon className="h-5 w-5 text-amber-400" />
-                    )}
-                </div>
-                <div className="flex-grow">
-                    <h4 className="font-bold text-sm uppercase tracking-wider mb-1">
-                        {isError ? 'AI Service Failure' : 'AI Provider Fallback'}
-                    </h4>
-                    <p className="text-sm opacity-90 leading-relaxed">
-                        {status.message || (isError ? 'All AI providers are currently unavailable.' : `Primary provider failed. Currently using ${status.provider}.`)}
-                    </p>
-                    <div className="mt-2 flex items-center justify-between">
-                        <span className="text-[10px] opacity-50 font-mono">
-                            {status.lastUsed ? new Date(status.lastUsed).toLocaleTimeString() : ''}
-                        </span>
-                        <button 
-                            onClick={() => setIsVisible(false)}
-                            className="text-[10px] uppercase font-bold hover:underline tracking-widest"
-                        >
-                            Dismiss
-                        </button>
-                    </div>
-                </div>
+                {isError ? (
+                    <AlertTriangleIcon className="h-3.5 w-3.5 text-red-400" />
+                ) : (
+                    <InfoIcon className="h-3.5 w-3.5 text-amber-400" />
+                )}
+                <span className="text-[10px] font-medium uppercase tracking-wider whitespace-nowrap">
+                    {isError ? 'AI Offline' : `AI: ${status.provider}`}
+                </span>
+                <button 
+                    onClick={() => setIsVisible(false)}
+                    className="ml-1 p-0.5 hover:bg-white/10 rounded-full transition-colors"
+                    title="Dismiss"
+                >
+                    <SlashIcon className="h-3 w-3 rotate-45" />
+                </button>
             </div>
         </div>
     );

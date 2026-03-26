@@ -182,8 +182,9 @@ export const callAI = async (messages: { role: string, content: string }[], json
 export const generateImage = async (prompt: string): Promise<string> => {
     const miniMaxKey = getMiniMaxKey();
     const openRouterKey = getOpenRouterKey();
+    const geminiKey = getGeminiKey();
 
-    // Try MiniMax first for images if key is available
+    // 1. Try MiniMax first for images if key is available
     if (miniMaxKey) {
         try {
             const response = await fetch(MINIMAX_IMAGE_URL, {
@@ -203,27 +204,56 @@ export const generateImage = async (prompt: string): Promise<string> => {
                 const data = await response.json();
                 const base64 = data.data?.[0]?.b64_json || data.images?.[0]?.url; // MiniMax format varies
                 if (base64) {
+                    updateAIStatus({ provider: 'MiniMax', status: 'online' });
                     return base64.startsWith('data:') ? base64 : `data:image/png;base64,${base64}`;
                 }
             }
+            console.warn(`MiniMax Image failed (Status: ${response.status})`);
         } catch (error) {
             console.error("MiniMax Image error:", error);
         }
     }
 
-    // Fallback to OpenRouter (though free image models are rare, we can try)
+    // 2. Try Gemini (Fallback - Built-in)
+    if (geminiKey) {
+        try {
+            const ai = new GoogleGenAI({ apiKey: geminiKey });
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash-image',
+                contents: { parts: [{ text: prompt }] },
+                config: {
+                    imageConfig: {
+                        aspectRatio: "1:1"
+                    }
+                }
+            });
+
+            // Find the image part
+            for (const part of response.candidates?.[0]?.content?.parts || []) {
+                if (part.inlineData) {
+                    updateAIStatus({ provider: 'Google Gemini', status: 'fallback', message: 'Primary image provider failed, using Gemini' });
+                    return `data:image/png;base64,${part.inlineData.data}`;
+                }
+            }
+            console.warn("Gemini Image generation returned no image data");
+        } catch (error) {
+            console.error("Gemini Image error:", error);
+        }
+    }
+
+    // 3. Fallback to OpenRouter (Placeholder/Future)
     if (openRouterKey) {
         try {
-            // Some OpenRouter models might support image generation via chat if we use specific models, 
-            // but usually it's a different endpoint or specific model like 'openai/dall-e-3'
-            // For now, we'll try to use a placeholder or inform the user if image gen is not available on free tier
+            // Future: Implement DALL-E 3 or similar via OpenRouter if available
             console.warn("OpenRouter image generation not implemented for free tier models yet.");
         } catch (error) {
             console.error("OpenRouter Image error:", error);
         }
     }
 
-    throw new Error("Image generation failed or no suitable provider found. Please check your MiniMax API key.");
+    const finalError = "Image generation failed or no suitable provider found. Please check your API keys.";
+    updateAIStatus({ provider: 'None', status: 'error', message: finalError });
+    throw new Error(finalError);
 };
 
 // Helper to retry AI calls
