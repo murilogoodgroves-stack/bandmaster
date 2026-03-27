@@ -4,7 +4,7 @@ import type { Page, User, BandProfile } from '../types';
 import { 
     DashboardIcon, ProjectsIcon, CalendarIcon, FinancialsIcon, PressIcon, MerchIcon, ReleaseIcon, TourIcon, SetlistIcon, CollaboratorIcon, ResourcesIcon, SettingsIcon,
     ProductionIcon, FundingIcon, FestivalIcon, GoalsIcon, MediaArchiveIcon, EPKIcon, BookingIcon, RoyaltiesIcon, MailIcon, BuildingIcon, BarChartIcon, UsersIcon, PlusIcon, EditIcon, StageIcon, RadioIcon, MegaphoneIcon,
-    SoundMatchIcon, InvoiceIcon, SaveIcon, SlashIcon, HomeIcon, TerminalIcon, ChevronDownIcon
+    SoundMatchIcon, InvoiceIcon, SaveIcon, SlashIcon, HomeIcon, TerminalIcon, QuestionMarkCircleIcon, ChevronDownIcon
 } from './icons';
 
 interface SidebarProps {
@@ -13,6 +13,7 @@ interface SidebarProps {
   activeBandId: string;
   onBandChange: (id: string) => void;
   onNewBandClick: () => void;
+  onHelpClick: () => void;
   users: User[];
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
 }
@@ -91,7 +92,7 @@ const NavSectionHeader: React.FC<{ title: string }> = ({ title }) => (
     </h3>
 );
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBandId, onBandChange, onNewBandClick, users, setUsers }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBandId, onBandChange, onNewBandClick, onHelpClick, users, setUsers }) => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const managementNavItems = [
@@ -241,6 +242,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBand
               page={settingsItem.id as Page}
               isActive={currentPage === settingsItem.id}
               onClick={() => setIsMobileOpen(false)}
+            />
+            <NavItem
+              key="help"
+              icon={<QuestionMarkCircleIcon className="h-5 w-5" />}
+              label="Help Center"
+              page="dashboard"
+              isActive={false}
+              onClick={onHelpClick}
             />
          </ul>
          <div className="border-t border-brand-border my-2"></div>

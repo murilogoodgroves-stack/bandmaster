@@ -91,9 +91,11 @@ interface FundingProps {
     savedFundingOpps: SavedFundingOpportunity[];
     setSavedFundingOpps: React.Dispatch<React.SetStateAction<SavedFundingOpportunity[]>>;
     setEvents: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
+    saveSearchResults?: (searchTerm: string, source: string, results: any[]) => void;
+    getSearchResults?: (source: string, searchTerm?: string) => any;
 }
 
-export const Funding: React.FC<FundingProps> = ({ activeBandId, savedFundingOpps: allSavedOpps, setSavedFundingOpps: setSavedOpps, setEvents }) => {
+export const Funding: React.FC<FundingProps> = ({ activeBandId, savedFundingOpps: allSavedOpps, setSavedFundingOpps: setSavedOpps, setEvents, saveSearchResults, getSearchResults }) => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<FundingOpportunity[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -189,6 +191,9 @@ export const Funding: React.FC<FundingProps> = ({ activeBandId, savedFundingOpps
     try {
         const fundingResults = await researchFunding(query);
         setResults(fundingResults);
+        if (saveSearchResults) {
+          saveSearchResults(query, 'funding', fundingResults);
+        }
     } finally {
         setIsLoading(false);
         window.dispatchEvent(new CustomEvent('end-task', { detail: { id: taskId } }));

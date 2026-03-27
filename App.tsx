@@ -36,6 +36,7 @@ import { Invoices } from './components/Invoices';
 import { Residencies } from './components/Residencies';
 import { SystemStatus } from './components/SystemStatus';
 import { AIStatusWarning } from './components/AIStatusWarning';
+import { HelpCenter } from './components/HelpCenter';
 import useLocalStorage from './hooks/useLocalStorage';
 import { 
     initialCampaigns, initialBandProfiles, initialUsers, initialTasks, initialProductionProjects, initialEvents, 
@@ -140,6 +141,7 @@ const App: React.FC = () => {
   // Fix: Initialize page state by splitting query params to ensure deep links work correctly on refresh
   const [page, setPage] = useState<Page>(() => (window.location.hash.substring(1).split('?')[0] || 'dashboard') as Page);
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
+  const [isHelpCenterOpen, setIsHelpCenterOpen] = useState(false);
   const [isNewBandModalOpen, setIsNewBandModalOpen] = useState(false);
   const [backgroundTasks, setBackgroundTasks] = useState<BackgroundTask[]>([]);
   
@@ -262,6 +264,33 @@ const App: React.FC = () => {
           return { ...prev, [activeBandId]: newVal };
       });
   }, [activeBandId, setBandSettingsMap]);
+
+  // Search Persistence State - for storing search results across navigation
+  interface SearchCacheItem {
+    searchTerm: string;
+    source: 'press' | 'radio' | 'labels' | 'funding' | 'festivals' | 'venues' | 'other';
+    results: any[];
+    timestamp: number;
+  }
+  
+  const [searchCache, setSearchCache] = useLocalStorage<SearchCacheItem[]>('searchCache', []);
+  
+  const saveSearchResults = useCallback((searchTerm: string, source: string, results: any[]) => {
+    setSearchCache(prev => {
+      const filtered = prev.filter(item => !(item.source === source && item.searchTerm === searchTerm));
+      return [{
+        searchTerm,
+        source: source as any,
+        results,
+        timestamp: Date.now()
+      }, ...filtered].slice(0, 20); // Keep only last 20 searches
+    });
+  }, [setSearchCache]);
+
+  const getSearchResults = useCallback((source: string, searchTerm?: string) => {
+    if (!searchTerm) return null;
+    return searchCache.find(item => item.source === source && item.searchTerm === searchTerm);
+  }, [searchCache]);
 
 
   const handleBandChange = (id: string) => {
@@ -430,11 +459,11 @@ const App: React.FC = () => {
       case 'invoices':
         return <Invoices {...allProps} invoices={invoices} bandSettings={bandSettings} />;
       case 'press':
-        return <PressOutreach {...allProps} pressContacts={pressContacts} setPressContacts={setPressContacts} />;
+        return <PressOutreach {...allProps} pressContacts={pressContacts} setPressContacts={setPressContacts} saveSearchResults={saveSearchResults} getSearchResults={getSearchResults} />;
       case 'radio':
-        return <RadioOutreach {...allProps} radioContacts={radioContacts} setRadioContacts={setRadioContacts} />;
+        return <RadioOutreach {...allProps} radioContacts={radioContacts} setRadioContacts={setRadioContacts} saveSearchResults={saveSearchResults} getSearchResults={getSearchResults} />;
       case 'label':
-        return <LabelReachout {...allProps} labelContacts={labelContacts} setLabelContacts={setLabelContacts} />;
+        return <LabelReachout {...allProps} labelContacts={labelContacts} setLabelContacts={setLabelContacts} saveSearchResults={saveSearchResults} getSearchResults={getSearchResults} />;
       case 'merch':
         return <Merchandise {...allProps} merch={merch} setMerch={setMerch} transactions={transactions} setTransactions={setTransactions} />;
       case 'releases':
@@ -452,7 +481,7 @@ const App: React.FC = () => {
       case 'production':
         return <Production {...allProps} songs={songs} setSongs={setSongs} projects={projects} setProjects={setProjects} tasks={tasks} setTasks={setTasks} />;
       case 'funding':
-        return <Funding {...allProps} savedFundingOpps={savedFundingOpps} setSavedFundingOpps={setSavedFundingOpps} setEvents={setEvents} />;
+        return <Funding {...allProps} savedFundingOpps={savedFundingOpps} setSavedFundingOpps={setSavedFundingOpps} setEvents={setEvents} saveSearchResults={saveSearchResults} getSearchResults={getSearchResults} />;
       case 'residencies':
         return <Residencies {...allProps} events={events} setEvents={setEvents} savedResidencies={savedResidencies} setSavedResidencies={setSavedResidencies} />;
       case 'system-status':
@@ -519,6 +548,7 @@ const App: React.FC = () => {
         activeBandId={activeBandId}
         onBandChange={handleBandChange}
         onNewBandClick={() => setIsNewBandModalOpen(true)}
+        onHelpClick={() => setIsHelpCenterOpen(true)}
         users={users}
         setUsers={setUsers}
       />
@@ -548,6 +578,7 @@ const App: React.FC = () => {
         bands={bands}
       />}
       {isNewBandModalOpen && <NewBandModal onClose={() => setIsNewBandModalOpen(false)} onSave={handleSaveBand} />}
+      {isHelpCenterOpen && <HelpCenter isOpen={isHelpCenterOpen} onClose={() => setIsHelpCenterOpen(false)} />}
     </div>
   );
 };

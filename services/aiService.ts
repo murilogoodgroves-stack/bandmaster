@@ -28,7 +28,143 @@ export interface AIStatus {
     lastUsed?: string;
 }
 
+export interface APIUsageLog {
+    id: string;
+    timestamp: string;
+    provider: string;
+    action: string;
+    tokensUsed?: number;
+    success: boolean;
+}
+
 let currentAIStatus: AIStatus = { provider: 'None', status: 'online' };
+const statusListeners: ((status: AIStatus) => void)[] = [];
+
+// API Rotation System - intelligently alternate between APIs
+export interface APIProvider {
+    name: string;
+    priority: number;
+    getKey: () => string | undefined;
+    lastUsed?: number;
+    failureCount: number;
+    successCount: number;
+}
+
+const apiProviders: APIProvider[] = [
+    { name: 'OpenRouter', priority: 1, getKey: getOpenRouterKey, failureCount: 0, successCount: 0 },
+    { name: 'Groq', priority: 2, getKey: getGroqKey, failureCount: 0, successCount: 0 },
+    { name: 'MiniMax', priority: 3, getKey: getMiniMaxKey, failureCount: 0, successCount: 0 },
+    { name: 'Google Gemini', priority: 4, getKey: getGeminiKey, failureCount: 0, successCount: 0 }
+];
+
+export const getAvailableProviders = (): APIProvider[] => {
+    return apiProviders.filter(p => p.getKey()).sort((a, b) => {
+        // Sort by success rate first, then priority
+        const aSuccessRate = a.successCount / Math.max(1, a.successCount + a.failureCount);
+        const bSuccessRate = b.successCount / Math.max(1, b.successCount + b.failureCount);
+        
+        // Prefer providers with higher success rates
+        if (Math.abs(aSuccessRate - bSuccessRate) > 0.1) {
+            return bSuccessRate - aSuccessRate;
+        }
+        
+        // If success rates are similar, use priority
+        return a.priority - b.priority;
+    });
+};
+
+const resetProviderStats = () => {
+    apiProviders.forEach(p => {
+        p.failureCount = 0;
+        p.successCount = 0;
+    });
+};
+
+// API Usage tracking
+let apiUsageLogs: APIUsageLog[] = [];
+const loadAPIUsageLogs = () => {
+    try {
+        const stored = localStorage.getItem('apiUsageLogs');
+        if (stored) {
+            apiUsageLogs = JSON.parse(stored);
+            // Keep only logs from last 30 days
+            const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+            apiUsageLogs = apiUsageLogs.filter(log => new Date(log.timestamp).getTime() > thirtyDaysAgo);
+        }
+    } catch (e) {
+        console.warn('Failed to load API usage logs');
+    }
+};
+
+loadAPIUsageLogs();
+
+export const logAPIUsage = (provider: string, action: string, success: boolean, tokensUsed?: number) => {
+    const log: APIUsageLog = {
+        id: `api-${Date.now()}-${Math.random()}`,
+        timestamp: new Date().toISOString(),
+        provider,
+        action,
+        tokensUsed,
+        success
+    };
+    apiUsageLogs.push(log);
+    localStorage.setItem('apiUsageLogs', JSON.stringify(apiUsageLogs));
+    
+    // Update provider stats
+    const providerEntry = apiProviders.find(p => p.name === provider);
+    if (providerEntry) {
+        if (success) {
+            providerEntry.successCount++;
+        } else {
+            providerEntry.failureCount++;
+        }
+    }
+};
+
+export const getAPIUsageLogs = (): APIUsageLog[] => {
+    return apiUsageLogs;
+};
+
+export const getAPIUsageStats = () => {
+    const stats = {
+        totalCalls: apiUsageLogs.length,
+        successfulCalls: apiUsageLogs.filter(l => l.success).length,
+        failedCalls: apiUsageLogs.filter(l => !l.success).length,
+        byProvider: {} as Record<string, { count: number; successful: number; failed: number }>,
+        last24Hours: 0,
+        last7Days: 0
+    };
+
+    const now = Date.now();
+    const oneDayAgo = now - (24 * 60 * 60 * 1000);
+    const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
+
+    apiUsageLogs.forEach(log => {
+        const logTime = new Date(log.timestamp).getTime();
+        if (logTime > oneDayAgo) stats.last24Hours++;
+        if (logTime > sevenDaysAgo) stats.last7Days++;
+
+        if (!stats.byProvider[log.provider]) {
+            stats.byProvider[log.provider] = { count: 0, successful: 0, failed: 0 };
+        }
+        stats.byProvider[log.provider].count++;
+        if (log.success) {
+            stats.byProvider[log.provider].successful++;
+        } else {
+            stats.byProvider[log.provider].failed++;
+        }
+    });
+
+    return stats;
+};
+
+export const subscribesToAPIUsageStats = (callback: (stats: any) => void) => {
+    // Return current stats immediately
+    callback(getAPIUsageStats());
+    // Could implement polling or event system if needed
+    return () => {};
+};
+
 const statusListeners: ((status: AIStatus) => void)[] = [];
 
 export const subscribeToAIStatus = (callback: (status: AIStatus) => void) => {
@@ -83,12 +219,15 @@ export const callAI = async (messages: { role: string, content: string }[], json
                 const content = data.choices?.[0]?.message?.content;
                 if (content) {
                     updateAIStatus({ provider: 'OpenRouter', status: 'online' });
+                    logAPIUsage('OpenRouter', 'AI Query', true, data.usage?.total_tokens);
                     return content;
                 }
             }
             console.warn(`OpenRouter failed (Status: ${response.status})`);
+            logAPIUsage('OpenRouter', 'AI Query', false);
         } catch (error) {
             console.error("OpenRouter error:", error);
+            logAPIUsage('OpenRouter', 'AI Query', false);
         }
     }
 
@@ -113,12 +252,15 @@ export const callAI = async (messages: { role: string, content: string }[], json
                 const content = data.choices?.[0]?.message?.content;
                 if (content) {
                     updateAIStatus({ provider: 'Groq', status: 'fallback', message: 'OpenRouter failed, using Groq' });
+                    logAPIUsage('Groq', 'AI Query', true, data.usage?.total_tokens);
                     return content;
                 }
             }
             console.warn(`Groq failed (Status: ${response.status})`);
+            logAPIUsage('Groq', 'AI Query', false);
         } catch (error) {
             console.error("Groq error:", error);
+            logAPIUsage('Groq', 'AI Query', false);
         }
     }
 
@@ -143,12 +285,15 @@ export const callAI = async (messages: { role: string, content: string }[], json
                 const content = data.choices?.[0]?.message?.content;
                 if (content) {
                     updateAIStatus({ provider: 'MiniMax', status: 'fallback', message: 'Primary providers failed, using MiniMax' });
+                    logAPIUsage('MiniMax', 'AI Query', true, data.usage?.total_tokens);
                     return content;
                 }
             }
             console.warn(`MiniMax failed (Status: ${response.status})`);
+            logAPIUsage('MiniMax', 'AI Query', false);
         } catch (error) {
             console.error("MiniMax error:", error);
+            logAPIUsage('MiniMax', 'AI Query', false);
         }
     }
 
@@ -166,15 +311,18 @@ export const callAI = async (messages: { role: string, content: string }[], json
 
             if (response.text) {
                 updateAIStatus({ provider: 'Google Gemini', status: 'fallback', message: 'All external providers failed, using built-in Gemini' });
+                logAPIUsage('Google Gemini', 'AI Query', true);
                 return response.text;
             }
         } catch (error) {
             console.error("Gemini error:", error);
+            logAPIUsage('Google Gemini', 'AI Query', false);
         }
     }
 
     const finalError = "All AI providers failed. Please check your API keys and quotas.";
     updateAIStatus({ provider: 'None', status: 'error', message: finalError });
+    logAPIUsage('Unknown', 'AI Query', false);
     throw new Error(finalError);
 };
 

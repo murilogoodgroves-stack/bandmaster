@@ -63,7 +63,7 @@ const AiEmailModal: React.FC<{ contact: PressContact, onClose: () => void, bandP
 };
 
 // Component for finding new radio contacts
-const RadioFinder: React.FC<{ onAddContact: (contact: RadioOpportunity, query: string) => void, savedContacts: RadioContact[] }> = ({ onAddContact, savedContacts }) => {
+const RadioFinder: React.FC<{ onAddContact: (contact: RadioOpportunity, query: string) => void, savedContacts: RadioContact[], saveSearchResults?: (searchTerm: string, source: string, results: any[]) => void, getSearchResults?: (source: string, searchTerm?: string) => any }> = ({ onAddContact, savedContacts, saveSearchResults, getSearchResults }) => {
     const [genre, setGenre] = useState('');
     const [country, setCountry] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -85,6 +85,9 @@ const RadioFinder: React.FC<{ onAddContact: (contact: RadioOpportunity, query: s
         try {
             const contacts = await findRadioContacts(genre, country, savedContacts);
             setResults(contacts);
+            if (saveSearchResults) {
+              saveSearchResults(genre, 'radio', contacts);
+            }
         } finally {
             setIsLoading(false);
             window.dispatchEvent(new CustomEvent('end-task', { detail: { id: taskId } }));
@@ -160,10 +163,12 @@ interface RadioOutreachProps {
     radioContacts: RadioContact[];
     setRadioContacts: React.Dispatch<React.SetStateAction<RadioContact[]>>;
     activeBandId: string;
+    saveSearchResults?: (searchTerm: string, source: string, results: any[]) => void;
+    getSearchResults?: (source: string, searchTerm?: string) => any;
 }
 
 // Main Component
-export const RadioOutreach: React.FC<RadioOutreachProps> = ({ bands, radioContacts: allSavedContacts, setRadioContacts: setSavedContacts, activeBandId }) => {
+export const RadioOutreach: React.FC<RadioOutreachProps> = ({ bands, radioContacts: allSavedContacts, setRadioContacts: setSavedContacts, activeBandId, saveSearchResults, getSearchResults }) => {
   const savedContacts = useMemo(() => allSavedContacts.filter(l => l.bandId === activeBandId), [allSavedContacts, activeBandId]);
   const bandProfile = useMemo(() => bands.find(b => b.id === activeBandId) || bands[0], [bands, activeBandId]);
   
@@ -236,9 +241,11 @@ export const RadioOutreach: React.FC<RadioOutreachProps> = ({ bands, radioContac
             </div>
         )}
 
-        <Tip onDismiss={() => {}}>Use the AI-powered finder to discover radio stations and DJs that match your genre.</Tip>
+        {showTip && (
+          <Tip onDismiss={() => setShowTip(false)}>Use the AI-powered finder to discover radio stations and DJs that match your genre.</Tip>
+        )}
 
-        <RadioFinder onAddContact={handleAddFoundContact} savedContacts={savedContacts} />
+        <RadioFinder onAddContact={handleAddFoundContact} savedContacts={savedContacts} saveSearchResults={saveSearchResults} getSearchResults={getSearchResults} />
 
         <div className="bg-gray-800 rounded-xl shadow-lg">
             <h3 className="text-xl font-bold p-4">My Radio Database ({savedContacts.length})</h3>

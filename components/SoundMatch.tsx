@@ -22,6 +22,7 @@ interface SoundMatchProps {
 export const SoundMatch: React.FC<SoundMatchProps> = ({ pressContacts: allPressContacts, setPressContacts: setAllPressContacts, radioContacts: allRadioContacts, setRadioContacts: setAllRadioContacts, activeBandId }) => {
     const [step, setStep] = useState<SoundMatchStep>('input');
     const [artistUrl, setArtistUrl] = useState('');
+    const [showTip, setShowTip] = useState(true);
     
     // Persist analysis and opportunities per band so they don't disappear on navigation
     const [analysis, setAnalysis] = useLocalStorage<SoundProfileAnalysis | null>(`soundMatchAnalysis_${activeBandId}`, null);
@@ -140,6 +141,12 @@ export const SoundMatch: React.FC<SoundMatchProps> = ({ pressContacts: allPressC
         <div>
             <h1 className="text-4xl font-bold mb-2">Sound Match Opportunity Finder</h1>
             <p className="text-gray-400 mb-6">Let AI analyze your sound and find contacts who have featured genuinely similar artists.</p>
+            
+            {showTip && (
+              <Tip onDismiss={() => setShowTip(false)}>
+                Paste your Spotify artist URL (e.g., open.spotify.com/artist/...). Our AI analyzes your sound, finds similar artists, then locates press & radio contacts who have featured those artists.
+              </Tip>
+            )}
             
             <div className="max-w-4xl mx-auto">
                 {step === 'input' && (

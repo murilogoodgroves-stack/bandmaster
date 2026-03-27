@@ -30,6 +30,7 @@ export const Campaigns: React.FC<CampaignsProps> = ({ users, activeBandId, campa
     const [view, setView] = useState<CampaignView>('list');
     const [editingCampaign, setEditingCampaign] = useState<EmailCampaign | null>(null);
     const [notification, setNotification] = useState('');
+    const [showTip, setShowTip] = useState(true);
 
     const handleCreateNew = () => {
         const newCampaign: EmailCampaign = {
@@ -102,6 +103,12 @@ export const Campaigns: React.FC<CampaignsProps> = ({ users, activeBandId, campa
                     <PlusIcon className="h-5 w-5 mr-2" /> New Campaign
                 </button>
             </div>
+            
+            {showTip && (
+              <Tip onDismiss={() => setShowTip(false)}>
+                Build multi-step email campaigns. Use AI to generate content, set up scheduling & follow-ups. Recipients can be press, venues, labels, radio, or custom audiences.
+              </Tip>
+            )}
             
             {notification && (
                 <div className="fixed top-5 right-5 z-50 p-4 text-sm rounded-lg shadow-lg bg-green-800 text-green-200">

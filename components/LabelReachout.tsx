@@ -59,7 +59,7 @@ const AiEmailModal: React.FC<{ contact: PressContact, onClose: () => void, bandP
 };
 
 // Component for finding new labels
-const LabelFinder: React.FC<{ onAddLabel: (label: LabelOpportunity, query: string) => void, savedLabels: LabelContact[], activeBandId: string }> = ({ onAddLabel, savedLabels, activeBandId }) => {
+const LabelFinder: React.FC<{ onAddLabel: (label: LabelOpportunity, query: string) => void, savedLabels: LabelContact[], activeBandId: string, saveSearchResults?: (searchTerm: string, source: string, results: any[]) => void, getSearchResults?: (source: string, searchTerm?: string) => any }> = ({ onAddLabel, savedLabels, activeBandId, saveSearchResults, getSearchResults }) => {
     const [genre, setGenre] = useState('');
     const [country, setCountry] = useState('');
     const [size, setSize] = useState('any');
@@ -91,6 +91,10 @@ const LabelFinder: React.FC<{ onAddLabel: (label: LabelOpportunity, query: strin
         try {
             const labels = await findLabelContacts(genre, country, size, labelName, savedLabels, similarToLabel);
             setResults(labels);
+            if (saveSearchResults) {
+              const searchKey = similarToLabel ? `similar:${similarToLabel}` : (labelName || genre);
+              saveSearchResults(searchKey, 'labels', labels);
+            }
         } finally {
             setIsLoading(false);
             window.dispatchEvent(new CustomEvent('end-task', { detail: { id: taskId } }));
@@ -183,15 +187,18 @@ interface LabelReachoutProps {
     labelContacts: LabelContact[];
     setLabelContacts: React.Dispatch<React.SetStateAction<LabelContact[]>>;
     activeBandId: string;
+    saveSearchResults?: (searchTerm: string, source: string, results: any[]) => void;
+    getSearchResults?: (source: string, searchTerm?: string) => any;
 }
 
-export const LabelReachout: React.FC<LabelReachoutProps> = ({ bands, labelContacts: allSavedLabels, setLabelContacts: setSavedLabels, activeBandId }) => {
+export const LabelReachout: React.FC<LabelReachoutProps> = ({ bands, labelContacts: allSavedLabels, setLabelContacts: setSavedLabels, activeBandId, saveSearchResults, getSearchResults }) => {
   const savedLabels = useMemo(() => allSavedLabels.filter(l => l.bandId === activeBandId), [allSavedLabels, activeBandId]);
   const bandProfile = useMemo(() => bands.find(b => b.id === activeBandId) || bands[0], [bands, activeBandId]);
   
   const [editingLabel, setEditingLabel] = useState<LabelContact | null>(null);
   const [contactForEmail, setContactForEmail] = useState<PressContact | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
+  const [showTip, setShowTip] = useState(true);
 
   const showNotification = (message: string) => {
     setNotification(message);
@@ -259,9 +266,11 @@ export const LabelReachout: React.FC<LabelReachoutProps> = ({ bands, labelContac
             </div>
         )}
 
-        <Tip onDismiss={() => {}}>Use the AI-powered finder to discover record labels that fit your genre and size.</Tip>
+        {showTip && (
+          <Tip onDismiss={() => setShowTip(false)}>Use the AI-powered finder to discover record labels that fit your genre and size.</Tip>
+        )}
 
-        <LabelFinder onAddLabel={handleAddFoundLabel} savedLabels={savedLabels} activeBandId={activeBandId} />
+        <LabelFinder onAddLabel={handleAddFoundLabel} savedLabels={savedLabels} activeBandId={activeBandId} saveSearchResults={saveSearchResults} getSearchResults={getSearchResults} />
 
         <div className="bg-gray-800 rounded-xl shadow-lg">
             <h3 className="text-xl font-bold p-4">My Label Database ({savedLabels.length})</h3>

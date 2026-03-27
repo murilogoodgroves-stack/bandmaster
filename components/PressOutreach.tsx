@@ -83,7 +83,7 @@ const AiEmailModal: React.FC<AiEmailModalProps> = ({ contacts, onClose, bandProf
     );
 };
 
-const ContactFinder: React.FC<{ onAddContact: (contact: FoundPressContact, artistQuery: string) => void, existingEmails: Set<string>, activeBandId: string }> = ({ onAddContact, existingEmails, activeBandId }) => {
+const ContactFinder: React.FC<{ onAddContact: (contact: FoundPressContact, artistQuery: string) => void, existingEmails: Set<string>, activeBandId: string, saveSearchResults?: (searchTerm: string, source: string, results: any[]) => void, getSearchResults?: (source: string, searchTerm?: string) => any }> = ({ onAddContact, existingEmails, activeBandId, saveSearchResults, getSearchResults }) => {
     const [artistQuery, setArtistQuery] = useState('');
     const [pubType, setPubType] = useState('any');
     const [country, setCountry] = useState('');
@@ -107,6 +107,9 @@ const ContactFinder: React.FC<{ onAddContact: (contact: FoundPressContact, artis
         try {
             const contacts = await findPressContacts(artistQuery, pubType, country);
             setResults(contacts);
+            if (saveSearchResults) {
+              saveSearchResults(artistQuery, 'press', contacts);
+            }
         } finally {
             setIsLoading(false);
             window.dispatchEvent(new CustomEvent('end-task', { detail: { id: taskId } }));
@@ -214,9 +217,11 @@ interface PressOutreachProps {
     activeBandId: string;
     pressContacts: PressContact[];
     setPressContacts: React.Dispatch<React.SetStateAction<PressContact[]>>;
+    saveSearchResults?: (searchTerm: string, source: string, results: any[]) => void;
+    getSearchResults?: (source: string, searchTerm?: string) => any;
 }
 
-export const PressOutreach: React.FC<PressOutreachProps> = ({ bands, activeBandId, pressContacts: allContacts, setPressContacts: setContacts }) => {
+export const PressOutreach: React.FC<PressOutreachProps> = ({ bands, activeBandId, pressContacts: allContacts, setPressContacts: setContacts, saveSearchResults, getSearchResults }) => {
   const activeBand = useMemo(() => bands.find(b => b.id === activeBandId) || bands[0], [bands, activeBandId]);
   
   const contacts = useMemo(() => allContacts.filter(c => c.bandId === activeBandId), [allContacts, activeBandId]);
@@ -422,7 +427,7 @@ export const PressOutreach: React.FC<PressOutreachProps> = ({ bands, activeBandI
             Use the "Find New Contacts" tool below to discover journalists who cover artists like you. Your searches will now power the AI assistant on the dashboard!
         </Tip>
 
-        <ContactFinder onAddContact={handleAddFoundContact} existingEmails={existingEmailsSet} activeBandId={activeBandId} />
+        <ContactFinder onAddContact={handleAddFoundContact} existingEmails={existingEmailsSet} activeBandId={activeBandId} saveSearchResults={saveSearchResults} getSearchResults={getSearchResults} />
 
         {showForm && (
             <div className="bg-gray-800 p-6 rounded-xl mb-8 shadow-lg">

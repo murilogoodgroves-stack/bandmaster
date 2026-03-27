@@ -109,6 +109,7 @@ export const LightbulbIcon: React.FC<{ className?: string }> = ({ className }) =
 
 // Icons for Settings (Danger Zone)
 export const AlertTriangleIcon: React.FC<{ className?: string }> = ({ className }) => <Icon className={className}><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" x2="12" y1="9" y2="13"></line><line x1="12" x2="12.01" y1="17" y2="17"></line></Icon>;
+export const AlertIcon: React.FC<{ className?: string }> = ({ className }) => <Icon className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></Icon>;
 export const DownloadIcon: React.FC<{ className?: string }> = ({ className }) => <Icon className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></Icon>;
 export const UploadIcon: React.FC<{ className?: string }> = ({ className }) => <Icon className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" x2="12" y1="3" y2="15"></line></Icon>;
 
@@ -131,3 +132,6 @@ export const FacebookIcon: React.FC<{ className?: string }> = ({ className }) =>
 export const BandcampIcon: React.FC<{ className?: string }> = ({ className }) => <Icon className={className}><path d="m12 6-6 6h12Z M6 12v6h12v-6Z"></path></Icon>;
 export const TerminalIcon: React.FC<{ className?: string }> = ({ className }) => <Icon className={className}><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></Icon>;
 export const XCircleIcon: React.FC<{ className?: string }> = ({ className }) => <Icon className={className}><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></Icon>;
+export const BookOpenIcon: React.FC<{ className?: string }> = ({ className }) => <Icon className={className}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></Icon>;
+export const XIcon: React.FC<{ className?: string }> = ({ className }) => <Icon className={className}><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></Icon>;
+export const QuestionMarkCircleIcon: React.FC<{ className?: string }> = ({ className }) => <Icon className={className}><circle cx="12" cy="12" r="10"></circle><path d="M12 17v.01"></path><path d="M12 13.5a1.5 1.5 0 0 1 0-3 1.5 1.5 0 0 1 0 3z"></path></Icon>;

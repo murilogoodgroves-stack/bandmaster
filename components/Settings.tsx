@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { User, BandProfile, BandSettings } from '../types';
 import { PlusIcon, TrashIcon, EditIcon, AlertTriangleIcon, DownloadIcon, UploadIcon, SaveIcon, SlashIcon } from './icons';
+import { getAPIUsageStats, getAPIUsageLogs } from '../services/aiService';
 
 interface SettingsProps {
     activeBandId: string;
@@ -153,10 +154,13 @@ export const Settings: React.FC<SettingsProps> = ({ activeBandId, bands, setBand
     useEffect(() => {
         setLocalProfileName(activeBand.name);
         setLocalProfileGenre(activeBand.genre);
+        // Load API usage stats
+        setApiUsageStats(getAPIUsageStats());
     }, [activeBand]);
 
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
+    const [apiUsageStats, setApiUsageStats] = useState<any>(null);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [importedData, setImportedData] = useState<any>(null);
@@ -366,7 +370,17 @@ export const Settings: React.FC<SettingsProps> = ({ activeBandId, bands, setBand
             localStorage.setItem(key, JSON.stringify(map));
         });
 
+        // Ensure state is updated before reload
         setIsResetModalOpen(false);
+        
+        // Update React state to reflect localStorage changes
+        const updatedBands = bands.filter(b => b.id !== activeBandId);
+        if (updatedBands.length > 0) {
+            setBands(updatedBands);
+            localStorage.setItem('bands', JSON.stringify(updatedBands));
+            localStorage.setItem('activeBandId', JSON.stringify(updatedBands[0].id));
+        }
+        
         alert("All data for this band has been reset. The app will now reload.");
         window.location.reload();
     };
@@ -445,7 +459,70 @@ export const Settings: React.FC<SettingsProps> = ({ activeBandId, bands, setBand
                         </div>
                     </div>
                 </div>
-                <div className="lg:col-span-1">
+                <div className="lg:col-span-1 space-y-8">
+                    <SettingsCard title="Monitoramento de API">
+                        {apiUsageStats ? (
+                            <div className="space-y-4">
+                                <div className="bg-gray-700/50 p-4 rounded-lg">
+                                    <h3 className="font-semibold text-sm text-gray-300 mb-3">Resumo de Uso</h3>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="bg-gray-800 p-3 rounded">
+                                            <p className="text-xs text-gray-400">Total de Chamadas</p>
+                                            <p className="text-2xl font-bold text-white">{apiUsageStats.totalCalls}</p>
+                                        </div>
+                                        <div className="bg-gray-800 p-3 rounded">
+                                            <p className="text-xs text-gray-400">Últimas 24h</p>
+                                            <p className="text-2xl font-bold text-green-400">{apiUsageStats.last24Hours}</p>
+                                        </div>
+                                        <div className="bg-gray-800 p-3 rounded">
+                                            <p className="text-xs text-gray-400">Bem-sucedidas</p>
+                                            <p className="text-2xl font-bold text-emerald-400">{apiUsageStats.successfulCalls}</p>
+                                        </div>
+                                        <div className="bg-gray-800 p-3 rounded">
+                                            <p className="text-xs text-gray-400">Falhadas</p>
+                                            <p className="text-2xl font-bold text-red-400">{apiUsageStats.failedCalls}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div className="bg-gray-700/50 p-4 rounded-lg">
+                                    <h3 className="font-semibold text-sm text-gray-300 mb-3">Por Provedor</h3>
+                                    <div className="space-y-2">
+                                        {Object.entries(apiUsageStats.byProvider).map(([provider, data]: [string, any]) => {
+                                            const percentage = data.count > 0 ? (data.successful / data.count) * 100 : 0;
+                                            const isWarning = percentage < 50;
+                                            return (
+                                                <div key={provider} className={`p-3 rounded ${isWarning ? 'bg-yellow-500/20 border border-yellow-500/50' : 'bg-gray-800'}`}>
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <div>
+                                                            <p className="font-semibold text-sm">{provider}</p>
+                                                            <p className="text-xs text-gray-400">{data.count} chamadas ({data.successful} OK / {data.failed} erro)</p>
+                                                        </div>
+                                                        {isWarning && percentage < 50 && (
+                                                            <span className="text-xs bg-yellow-500/50 text-yellow-200 px-2 py-1 rounded">⚠️ {Math.round(percentage)}%</span>
+                                                        )}
+                                                    </div>
+                                                    <div className="w-full bg-gray-700 rounded-full h-1">
+                                                        <div 
+                                                            className={`h-1 rounded-full transition-all ${percentage >= 70 ? 'bg-green-500' : percentage >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                                            style={{ width: `${percentage}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                <div className="bg-blue-600/20 border border-blue-500/50 p-3 rounded-lg">
+                                    <p className="text-xs text-blue-200">💡 O sistema alterna automaticamente entre APIs OpenRouter → Groq → MiniMax → Gemini para garantir funcionamento contínuo mesmo quando uma atinge o limite.</p>
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="text-gray-400">Carregando dados de API...</p>
+                        )}
+                    </SettingsCard>
+
                     <SettingsCard title="Band Members">
                         <div className="space-y-3">
                             {users.map(user => {

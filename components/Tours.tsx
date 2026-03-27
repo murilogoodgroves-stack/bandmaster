@@ -222,6 +222,7 @@ export const Tours: React.FC<ToursProps> = ({ activeBandId, tours: allTours, set
   const [showForm, setShowForm] = useState(false);
   const [newTourName, setNewTourName] = useState('');
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [showTip, setShowTip] = useState(true);
 
   const handleAddTour = (e: React.FormEvent) => {
     e.preventDefault();
@@ -299,6 +300,12 @@ export const Tours: React.FC<ToursProps> = ({ activeBandId, tours: allTours, set
       </div>
 
        {isImportModalOpen && <ImportTourModal onClose={() => setIsImportModalOpen(false)} setTours={setTours} setVenues={setVenues} activeBandId={activeBandId} venues={venues} />}
+
+      {showTip && (
+        <Tip onDismiss={() => setShowTip(false)}>
+          Organize your shows by tour. Add venues, dates, timeslots, and view your full touring schedule. Link setlists to each show.
+        </Tip>
+      )}
 
       {showForm && (
         <div className="bg-gray-800 p-6 rounded-xl mb-8 shadow-lg">

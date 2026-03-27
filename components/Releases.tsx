@@ -37,6 +37,7 @@ export const Releases: React.FC<ReleasesProps> = ({ users, bands, activeBandId, 
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [selectedRelease, setSelectedRelease] = useState<Release | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showTip, setShowTip] = useState(true);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -134,7 +135,7 @@ export const Releases: React.FC<ReleasesProps> = ({ users, bands, activeBandId, 
           Plan New Release
         </button>
       </div>
-      <Tip onDismiss={() => {}}>This is your command center for all music releases. Click "Plan New Release" to start a comprehensive, multi-phase rollout plan.</Tip>
+      {showTip && <Tip onDismiss={() => setShowTip(false)}>This is your command center for all music releases. Click "Plan New Release" to start a comprehensive, multi-phase rollout plan.</Tip>}
       <ReleaseList releases={releases} onSelectRelease={handleSelectRelease} />
       {isModalOpen && <NewReleaseModal onClose={() => setIsModalOpen(false)} onSave={handleSaveRelease} activeBand={activeBand} projects={projects} />}
     </div>
