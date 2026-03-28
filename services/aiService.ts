@@ -165,8 +165,6 @@ export const subscribesToAPIUsageStats = (callback: (stats: any) => void) => {
     return () => {};
 };
 
-const statusListeners: ((status: AIStatus) => void)[] = [];
-
 export const subscribeToAIStatus = (callback: (status: AIStatus) => void) => {
     statusListeners.push(callback);
     callback(currentAIStatus);
