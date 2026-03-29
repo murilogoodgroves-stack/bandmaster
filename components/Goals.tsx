@@ -17,9 +17,21 @@ const GoalModal: React.FC<{
         if (!description || !targetDate) return;
         onSave({ description, targetDate });
     };
+
+    const handleOverlayClick = (e: React.MouseEvent) => {
+        if (e.target === e.currentTarget) {
+            onClose();
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Escape') {
+            onClose();
+        }
+    };
     
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50" onClick={handleOverlayClick} onKeyDown={handleKeyDown} tabIndex={-1}>
             <div className="bg-gray-800 p-6 rounded-xl shadow-lg w-full max-w-lg">
                 <h3 className="text-xl font-bold mb-4">{goal ? 'Edit Goal' : 'Set a New Goal'}</h3>
                 <form onSubmit={handleSubmit} className="space-y-4">

@@ -5,6 +5,7 @@ import type { Page, Task, Transaction, Show, Release, BandProfile, ProductionPro
 import { generateReportInsights, generateReportConfigFromPrompt } from '../services/aiService';
 import { BarChartIcon, BotIcon, LightbulbIcon, PlusIcon, SearchIcon } from './icons';
 import { TaskStatus, TransactionType } from '../types';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 
 // --- Reusable Components ---
 const StatCard: React.FC<{ title: string; value: string | number; subtext?: string; colorClass: string }> = ({ title, value, subtext, colorClass }) => (
@@ -71,12 +72,60 @@ const ReportDisplay: React.FC<{ report: { config: ReportConfig, data: any[] } }>
                 </ul>
             );
         case 'BarChart':
+            // Prepare data for bar chart
+            const barData = data.map((item, index) => ({
+                name: item.title || item.description || item.name || `Item ${index + 1}`,
+                value: item.amount || item.count || item.id ? 1 : 0
+            }));
+            return (
+                <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={barData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                            <XAxis dataKey="name" stroke="#94a3b8" />
+                            <YAxis stroke="#94a3b8" />
+                            <Tooltip 
+                                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
+                                labelStyle={{ color: '#e2e8f0' }}
+                            />
+                            <Bar dataKey="value" fill="#8b5cf6" />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            );
         case 'PieChart':
-            // Placeholder for charts
-            return <>
-                <p className="text-gray-500">Chart view for '{config.displayAs}' is not implemented in this demo. Raw data is shown below.</p>
-                <pre className="text-xs bg-gray-900 p-4 rounded-md overflow-x-auto">{JSON.stringify(data, null, 2)}</pre>
-            </>;
+            // Prepare data for pie chart
+            const pieData = data.map((item, index) => ({
+                name: item.title || item.description || item.name || `Item ${index + 1}`,
+                value: item.amount || item.count || 1
+            }));
+            const COLORS = ['#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4'];
+            return (
+                <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                            <Pie
+                                data={pieData}
+                                cx="50%"
+                                cy="50%"
+                                labelLine={false}
+                                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                outerRadius={80}
+                                fill="#8884d8"
+                                dataKey="value"
+                            >
+                                {pieData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                ))}
+                            </Pie>
+                            <Tooltip 
+                                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
+                                labelStyle={{ color: '#e2e8f0' }}
+                            />
+                        </PieChart>
+                    </ResponsiveContainer>
+                </div>
+            );
         default:
             return <pre className="text-xs bg-gray-900 p-4 rounded-md overflow-x-auto">{JSON.stringify(data, null, 2)}</pre>;
     }
@@ -168,6 +217,36 @@ export const Reports: React.FC<{
         .filter(r => new Date(r.releaseDate) > new Date(Date.now() - 90 * 24 * 60 * 60 * 1000))
         .reduce((sum, r) => sum + r.trackCount, 0);
 
+    // Chart data calculations
+    const taskCompletionOverTime = useMemo(() => {
+        const last30Days = Array.from({ length: 30 }, (_, i) => {
+            const date = new Date();
+            date.setDate(date.getDate() - (29 - i));
+            return date.toISOString().split('T')[0];
+        });
+
+        return last30Days.map(date => {
+            const tasksOnDate = tasks.filter(t => t.createdAt?.startsWith(date) || t.dueDate === date);
+            const completedOnDate = tasksOnDate.filter(t => t.status === TaskStatus.Done);
+            return {
+                date: new Date(date).toLocaleDateString('pt-BR', { month: 'short', day: 'numeric' }),
+                completed: completedOnDate.length,
+                total: tasksOnDate.length
+            };
+        });
+    }, [tasks]);
+
+    const incomeVsExpenses = useMemo(() => {
+        const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+        const dataByMonth = months.map(m => ({ month: m, income: 0, expense: 0 }));
+        transactions.forEach(tx => {
+            const monthIndex = new Date(tx.date).getMonth();
+            if (tx.type === TransactionType.Income) dataByMonth[monthIndex].income += tx.amount;
+            else dataByMonth[monthIndex].expense += tx.amount;
+        });
+        return dataByMonth;
+    }, [transactions]);
+
 
     return (
         <div>
@@ -184,6 +263,46 @@ export const Reports: React.FC<{
                 <StatCard title="Income (30d)" value={`$${incomeLast30Days.toFixed(2)}`} colorClass="border-green-500"/>
                 <StatCard title="Expenses (30d)" value={`$${expenseLast30Days.toFixed(2)}`} colorClass="border-red-500"/>
                 <StatCard title="Songs Released (90d)" value={songsCompletedThisQuarter} colorClass="border-purple-500"/>
+            </div>
+
+            {/* Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <div className="bg-gray-800 p-6 rounded-xl">
+                    <h3 className="text-xl font-bold mb-4">Conclusão de Tarefas ao Longo do Tempo</h3>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={taskCompletionOverTime}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                                <XAxis dataKey="date" stroke="#94a3b8" />
+                                <YAxis stroke="#94a3b8" />
+                                <Tooltip 
+                                    contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
+                                    labelStyle={{ color: '#e2e8f0' }}
+                                />
+                                <Line type="monotone" dataKey="completed" stroke="#10b981" name="Concluídas" />
+                                <Line type="monotone" dataKey="total" stroke="#8b5cf6" name="Criadas" />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+                <div className="bg-gray-800 p-6 rounded-xl">
+                    <h3 className="text-xl font-bold mb-4">Receita vs Despesas</h3>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={incomeVsExpenses}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                                <XAxis dataKey="month" stroke="#94a3b8" />
+                                <YAxis stroke="#94a3b8" />
+                                <Tooltip 
+                                    contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
+                                    labelStyle={{ color: '#e2e8f0' }}
+                                />
+                                <Bar dataKey="income" fill="#10b981" name="Receita" />
+                                <Bar dataKey="expense" fill="#ef4444" name="Despesa" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
             </div>
 
             {/* AI Insights */}

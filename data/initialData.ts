@@ -24,12 +24,12 @@ export const initialTasks: Task[] = [
   { id: 't6', projectId: 'p1', title: "Shoot music video concept", assignedToId: 'u1', dueDate: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString().substring(0,10), status: TaskStatus.ToDo, priority: TaskPriority.Low, phase: "Pre-Production", bandId: defaultBandId, goalId: 'g4' },
   
   // Tasks from old Production Project Pipeline
-  { id: 'ppt_1', projectId: 'p1', title: "Finalize album tracklist order", assignedToId: "u1", dueDate: "2024-08-15", status: TaskStatus.Done, priority: TaskPriority.High, phase: "Pre-Production", bandId: defaultBandId, goalId: 'g3' },
-  { id: 'ppt_3', projectId: 'p1', title: "Book studio time for the album", assignedToId: "u4", dueDate: "2024-09-01", status: TaskStatus.ToDo, priority: TaskPriority.Critical, phase: "Pre-Production", bandId: defaultBandId, goalId: 'g3' },
-  { id: 'rt_1', projectId: 'p1', songId: 's_01', title: "Track all drum parts for 'Starlight Echo'", assignedToId: "u4", dueDate: "2024-09-15", status: TaskStatus.Done, priority: TaskPriority.High, phase: "Recording", bandId: defaultBandId, goalId: 'g3' },
-  { id: 'rt_2', projectId: 'p1', songId: 's_02', title: "Track all bass parts for 'Nebula'", assignedToId: "u3", dueDate: "2024-09-20", status: TaskStatus.ToDo, priority: TaskPriority.High, phase: "Recording", bandId: defaultBandId, goalId: 'g3' },
-  { id: 'rt_4', projectId: 'p1', songId: 's_01', title: "Re-track lead vocals for 'Starlight Echo'", assignedToId: "u1", dueDate: "2024-09-30", status: TaskStatus.ToDo, priority: TaskPriority.High, phase: "Recording", bandId: defaultBandId, goalId: 'g3' },
-  { id: 'mt_2', projectId: 'p1', title: "Band review of all mixes", assignedToId: "u4", dueDate: "2024-10-15", status: TaskStatus.ToDo, priority: TaskPriority.Medium, phase: "Mixing", bandId: defaultBandId, goalId: 'g3' },
+  { id: 'ppt_1', projectId: 'p1', title: "Finalize album tracklist order", assignedToId: "u1", dueDate: "2025-08-15", status: TaskStatus.Done, priority: TaskPriority.High, phase: "Pre-Production", bandId: defaultBandId, goalId: 'g3' },
+  { id: 'ppt_3', projectId: 'p1', title: "Book studio time for the album", assignedToId: "u4", dueDate: "2025-09-01", status: TaskStatus.ToDo, priority: TaskPriority.Critical, phase: "Pre-Production", bandId: defaultBandId, goalId: 'g3' },
+  { id: 'rt_1', projectId: 'p1', songId: 's_01', title: "Track all drum parts for 'Starlight Echo'", assignedToId: "u4", dueDate: "2025-09-15", status: TaskStatus.Done, priority: TaskPriority.High, phase: "Recording", bandId: defaultBandId, goalId: 'g3' },
+  { id: 'rt_2', projectId: 'p1', songId: 's_02', title: "Track all bass parts for 'Nebula'", assignedToId: "u3", dueDate: "2025-09-20", status: TaskStatus.ToDo, priority: TaskPriority.High, phase: "Recording", bandId: defaultBandId, goalId: 'g3' },
+  { id: 'rt_4', projectId: 'p1', songId: 's_01', title: "Re-track lead vocals for 'Starlight Echo'", assignedToId: "u1", dueDate: "2025-09-30", status: TaskStatus.ToDo, priority: TaskPriority.High, phase: "Recording", bandId: defaultBandId, goalId: 'g3' },
+  { id: 'mt_2', projectId: 'p1', title: "Band review of all mixes", assignedToId: "u4", dueDate: "2025-10-15", status: TaskStatus.ToDo, priority: TaskPriority.Medium, phase: "Mixing", bandId: defaultBandId, goalId: 'g3' },
 ];
 
 export const initialEvents: CalendarEvent[] = [
@@ -72,8 +72,8 @@ export const initialFanContacts: FanContact[] = [
 ];
 
 export const initialPublishedArticles: PublishedArticle[] = [
-    { id: 'pa1', releaseId: 'r1', title: "'Starlight Echo' is a shimmering piece of dream-pop genius", url: "#", outlet: "Indie Soundwaves Blog", author: "Jenna Riffs", publishDate: "2024-06-15", bandId: defaultBandId },
-    { id: 'pa2', releaseId: 'r1', title: "LOVNIS reach for the stars on their latest single", url: "#", outlet: "Sonic Discovery Weekly", author: "Marcus Tone", publishDate: "2024-06-16", bandId: defaultBandId },
+    { id: 'pa1', releaseId: 'r1', title: "'Starlight Echo' is a shimmering piece of dream-pop genius", url: "#", outlet: "Indie Soundwaves Blog", author: "Jenna Riffs", publishDate: "2025-06-15", bandId: defaultBandId },
+    { id: 'pa2', releaseId: 'r1', title: "LOVNIS reach for the stars on their latest single", url: "#", outlet: "Sonic Discovery Weekly", author: "Marcus Tone", publishDate: "2025-06-16", bandId: defaultBandId },
 ];
 
 export const initialMerch: MerchItem[] = [
@@ -218,7 +218,7 @@ export const initialSongs: Song[] = [
         title: "Starlight Echo",
         workingTitles: ["Stardust", "Echoes in the Void"],
         composerSplits: [{ id: 'cs1', composer: "Moe (Vocals)", percentage: 50 }, { id: 'cs2', composer: "Jamie (Guitar)", percentage: 50 }],
-        dateCreated: "2024-05-10",
+        dateCreated: "2025-05-10",
         genre: ["Dream Pop", "Indie Rock"],
         tempo: 125,
         keySignature: "A Major",
@@ -243,7 +243,7 @@ export const initialSongs: Song[] = [
         title: "Nebula",
         workingTitles: [],
         composerSplits: [],
-        dateCreated: "2024-06-20",
+        dateCreated: "2025-06-20",
         genre: ["Shoegaze"],
         tempo: 90,
         keySignature: "F# Minor",
@@ -263,7 +263,7 @@ export const initialSongs: Song[] = [
         title: "Solar Flare",
         workingTitles: [],
         composerSplits: [],
-        dateCreated: "2024-07-01",
+        dateCreated: "2025-07-01",
         genre: ["Indie Rock"],
         tempo: 140,
         keySignature: "E Major",
@@ -337,11 +337,11 @@ export const initialProductionProjects: ProductionProject[] = [
 ];
 
 export const initialFundingApplications: FundingApplication[] = [
-  { id: 'fa1', name: "Initiative Musik - Artist Grant", country: "Germany", openingDate: "2024-03-01", deadline: "2024-04-15", url: "#", projectSketch: "Funding for our debut album production and marketing campaign.", uploadedDocuments: [{name: 'Project_Budget.pdf', url:'#'}], status: 'Submitted', bandId: defaultBandId },
+  { id: 'fa1', name: "Initiative Musik - Artist Grant", country: "Germany", openingDate: "2025-03-01", deadline: "2025-04-15", url: "#", projectSketch: "Funding for our debut album production and marketing campaign.", uploadedDocuments: [{name: 'Project_Budget.pdf', url:'#'}], status: 'Submitted', bandId: defaultBandId },
 ];
 
 export const initialFestivals: Festival[] = [
-  { id: 'f1', name: "Reeperbahn Festival", country: "Germany", submissionOpenDate: "2024-02-01", submissionDeadline: "2024-07-20", url: "#", bandId: defaultBandId },
+  { id: 'f1', name: "Reeperbahn Festival", country: "Germany", submissionOpenDate: "2025-02-01", submissionDeadline: "2025-07-20", url: "#", bandId: defaultBandId },
 ];
 
 export const initialGoals: BandGoal[] = [
@@ -352,18 +352,18 @@ export const initialGoals: BandGoal[] = [
 ];
 
 export const initialMediaAssets: MediaAsset[] = [
-  { id: 'ma1', name: "Promo Photoshoot - Downtown", type: 'Photo', location: 'Google Drive', folderPath: '/Band Photos/2024/Promo_Downtown/', tags: ['promo', '2024', 'urban'], bandId: defaultBandId },
+  { id: 'ma1', name: "Promo Photoshoot - Downtown", type: 'Photo', location: 'Google Drive', folderPath: '/Band Photos/2025/Promo_Downtown/', tags: ['promo', '2025', 'urban'], bandId: defaultBandId },
   { id: 'ma2', name: "'Starlight Echo' Music Video (Final)", type: 'Video', location: 'Main Hard Drive', folderPath: '/Videos/Starlight_Echo/Final_Cut/', tags: ['music video', 'official', 'starlight echo'], videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ", bandId: defaultBandId },
 ];
 
 export const initialSaasSubscriptions: SaasSubscription[] = [
   { id: 'ss1', name: "DistroKid", renewalDate: "2025-01-15", cost: 22.99, bandId: defaultBandId },
-  { id: 'ss2', name: "Bandzoogle", renewalDate: "2024-12-01", cost: 199.00, bandId: defaultBandId },
+  { id: 'ss2', name: "Bandzoogle", renewalDate: "2025-12-01", cost: 199.00, bandId: defaultBandId },
 ];
 
 export const initialRoyalties: RoyaltyStatement[] = [
-    { id: 'rs1', source: RoyaltySource.GEMA, statementDate: "2024-04-15", period: "Q1 2024", amount: 245.80, bandId: defaultBandId },
-    { id: 'rs2', source: RoyaltySource.DistroKid, statementDate: "2024-05-01", period: "April 2024", amount: 89.50, bandId: defaultBandId },
+    { id: 'rs1', source: RoyaltySource.GEMA, statementDate: "2025-04-15", period: "Q1 2025", amount: 245.80, bandId: defaultBandId },
+    { id: 'rs2', source: RoyaltySource.DistroKid, statementDate: "2025-05-01", period: "April 2025", amount: 89.50, bandId: defaultBandId },
 ];
 
 export const initialCampaigns: EmailCampaign[] = [

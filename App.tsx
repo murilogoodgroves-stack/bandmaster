@@ -36,6 +36,7 @@ import { Invoices } from './components/Invoices';
 import { Residencies } from './components/Residencies';
 import { SystemStatus } from './components/SystemStatus';
 import { AIStatusWarning } from './components/AIStatusWarning';
+import { useTranslation } from './hooks/useTranslation';
 import { HelpCenter } from './components/HelpCenter';
 import useLocalStorage from './hooks/useLocalStorage';
 import { 
@@ -111,24 +112,78 @@ const NewBandModal: React.FC<{
 }> = ({ onClose, onSave }) => {
     const [name, setName] = useState('');
     const [genre, setGenre] = useState('');
+    const [errors, setErrors] = useState<{name?: string, genre?: string}>({});
+    const t = useTranslation();
+
+    const validateForm = () => {
+        const newErrors: {name?: string, genre?: string} = {};
+
+        if (!name.trim()) {
+            newErrors.name = t('bandNameRequired');
+        } else if (name.trim().length < 2) {
+            newErrors.name = t('bandNameTooShort');
+        }
+
+        if (!genre.trim()) {
+            newErrors.genre = t('genreRequired');
+        } else if (genre.trim().length < 2) {
+            newErrors.genre = t('genreTooShort');
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if(!name.trim() || !genre.trim()) return;
-        onSave({ name, genre });
-        onClose();
+        if (validateForm()) {
+            onSave({ name: name.trim(), genre: genre.trim() });
+            onClose();
+        }
+    };
+
+    const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setName(e.target.value);
+        if (errors.name) {
+            setErrors(prev => ({ ...prev, name: undefined }));
+        }
+    };
+
+    const handleGenreChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setGenre(e.target.value);
+        if (errors.genre) {
+            setErrors(prev => ({ ...prev, genre: undefined }));
+        }
     };
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
             <div className="bg-brand-bg-card rounded-xl shadow-2xl p-6 w-full max-w-md">
-                <h2 className="text-2xl font-medium mb-4">Create New Band</h2>
+                <h2 className="text-2xl font-medium mb-4">{t('createNewBand')}</h2>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <input type="text" placeholder="Band Name" value={name} onChange={e => setName(e.target.value)} className="w-full bg-brand-bg-content p-3 rounded-lg ring-brand-accent" required />
-                    <input type="text" placeholder="Genre(s)" value={genre} onChange={e => setGenre(e.target.value)} className="w-full bg-brand-bg-content p-3 rounded-lg ring-brand-accent" required />
+                    <div>
+                        <input
+                            type="text"
+                            placeholder={t('bandName')}
+                            value={name}
+                            onChange={handleNameChange}
+                            className={`w-full bg-brand-bg-content p-3 rounded-lg ring-brand-accent ${errors.name ? 'ring-red-500 border-red-500' : ''}`}
+                        />
+                        {errors.name && <p className="text-red-400 text-sm mt-1">{errors.name}</p>}
+                    </div>
+                    <div>
+                        <input
+                            type="text"
+                            placeholder={t('genre')}
+                            value={genre}
+                            onChange={handleGenreChange}
+                            className={`w-full bg-brand-bg-content p-3 rounded-lg ring-brand-accent ${errors.genre ? 'ring-red-500 border-red-500' : ''}`}
+                        />
+                        {errors.genre && <p className="text-red-400 text-sm mt-1">{errors.genre}</p>}
+                    </div>
                     <div className="flex justify-end gap-4 pt-4">
-                        <button type="button" onClick={onClose} className="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg">Cancel</button>
-                        <button type="submit" className="bg-brand-accent hover:bg-brand-accent-dark text-white font-medium py-2 px-4 rounded-lg">Create Band</button>
+                        <button type="button" onClick={onClose} className="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg">{t('cancel')}</button>
+                        <button type="submit" className="bg-brand-accent hover:bg-brand-accent-dark text-white font-medium py-2 px-4 rounded-lg">{t('create')}</button>
                     </div>
                 </form>
             </div>
@@ -540,7 +595,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-brand-bg-outer text-gray-200">
+    <div className="flex min-h-screen bg-brand-bg-outer text-gray-200 pb-20 md:pb-0">
       <AIStatusWarning />
       <Sidebar 
         currentPage={page} 
@@ -558,7 +613,7 @@ const App: React.FC = () => {
       </main>
 
       {/* AI Assistant */}
-      <div className="fixed bottom-6 right-6 z-50">
+      <div className="fixed bottom-6 right-6 z-50 md:bottom-6 lg:bottom-6">
           <button 
               onClick={() => setIsAiAssistantOpen(true)}
               className="bg-brand-accent text-white rounded-full p-4 shadow-lg hover:bg-brand-accent-dark transition-transform transform hover:scale-110"

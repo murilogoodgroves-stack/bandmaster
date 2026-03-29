@@ -6,6 +6,8 @@ import {
     ProductionIcon, FundingIcon, FestivalIcon, GoalsIcon, MediaArchiveIcon, EPKIcon, BookingIcon, RoyaltiesIcon, MailIcon, BuildingIcon, BarChartIcon, UsersIcon, PlusIcon, EditIcon, StageIcon, RadioIcon, MegaphoneIcon,
     SoundMatchIcon, InvoiceIcon, SaveIcon, SlashIcon, HomeIcon, TerminalIcon, QuestionMarkCircleIcon, ChevronDownIcon
 } from './icons';
+import { FiMenu } from 'react-icons/fi';
+import { useTranslation } from '../hooks/useTranslation';
 
 interface SidebarProps {
   currentPage: Page;
@@ -92,61 +94,62 @@ const NavSectionHeader: React.FC<{ title: string }> = ({ title }) => (
     </h3>
 );
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBandId, onBandChange, onNewBandClick, onHelpClick, users, setUsers }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activePage, onPageChange, onNewBandClick }) => {
+  const t = useTranslation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const managementNavItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon className="h-5 w-5" /> },
-    { id: 'projects', label: 'Projects', icon: <ProjectsIcon className="h-5 w-5" /> },
-    { id: 'calendar', label: 'Calendar', icon: <CalendarIcon className="h-5 w-5" /> },
-    { id: 'reports', label: 'Reports', icon: <BarChartIcon className="h-5 w-5" /> },
-    { id: 'goals', label: 'Goals', icon: <GoalsIcon className="h-5 w-5" /> },
+    { id: 'dashboard', label: t('sidebar.dashboard'), icon: <DashboardIcon className="h-5 w-5" /> },
+    { id: 'projects', label: t('sidebar.projects'), icon: <ProjectsIcon className="h-5 w-5" /> },
+    { id: 'calendar', label: t('sidebar.calendar'), icon: <CalendarIcon className="h-5 w-5" /> },
+    { id: 'reports', label: t('sidebar.reports'), icon: <BarChartIcon className="h-5 w-5" /> },
+    { id: 'goals', label: t('sidebar.goals'), icon: <GoalsIcon className="h-5 w-5" /> },
   ];
 
   const creativeNavItems = [
-    { id: 'production', label: 'Production', icon: <ProductionIcon className="h-5 w-5" /> },
-    { id: 'releases', label: 'Releases', icon: <ReleaseIcon className="h-5 w-5" /> },
-    { id: 'setlists', label: 'Setlists', icon: <SetlistIcon className="h-5 w-5" /> },
-    { id: 'media', label: 'Media Archive', icon: <MediaArchiveIcon className="h-5 w-5" />},
-    { id: 'stage', label: 'Stage Plot', icon: <StageIcon className="h-5 w-5" /> },
+    { id: 'production', label: t('sidebar.production'), icon: <ProductionIcon className="h-5 w-5" /> },
+    { id: 'releases', label: t('sidebar.releases'), icon: <ReleaseIcon className="h-5 w-5" /> },
+    { id: 'setlists', label: t('sidebar.setlists'), icon: <SetlistIcon className="h-5 w-5" /> },
+    { id: 'media', label: t('sidebar.mediaArchive'), icon: <MediaArchiveIcon className="h-5 w-5" />},
+    { id: 'stage', label: t('sidebar.stagePlot'), icon: <StageIcon className="h-5 w-5" /> },
   ];
 
   const liveNavItems = [
-    { id: 'gigs', label: 'Gigs', icon: <BookingIcon className="h-5 w-5" /> },
-    { id: 'tours', label: 'Tours', icon: <TourIcon className="h-5 w-5" /> },
-    { id: 'residencies', label: 'Residencies', icon: <HomeIcon className="h-5 w-5" />},
-    { id: 'festivals', label: 'Festivals', icon: <FestivalIcon className="h-5 w-5" /> },
+    { id: 'gigs', label: t('sidebar.gigs'), icon: <BookingIcon className="h-5 w-5" /> },
+    { id: 'tours', label: t('sidebar.tours'), icon: <TourIcon className="h-5 w-5" /> },
+    { id: 'residencies', label: t('sidebar.residencies'), icon: <HomeIcon className="h-5 w-5" />},
+    { id: 'festivals', label: t('sidebar.festivals'), icon: <FestivalIcon className="h-5 w-5" /> },
   ];
 
   const promotionNavItems = [
-    { id: 'campaigns', label: 'Campaigns', icon: <MailIcon className="h-5 w-5" /> },
-    { id: 'press', label: 'Press Outreach', icon: <PressIcon className="h-5 w-5" /> },
-    { id: 'radio', label: 'Radio Outreach', icon: <RadioIcon className="h-5 w-5" /> },
-    { id: 'label', label: 'Label Reachout', icon: <BuildingIcon className="h-5 w-5" /> },
-    { id: 'sound-match', label: 'Sound Match', icon: <SoundMatchIcon className="h-5 w-5" /> },
-    { id: 'epk', label: 'EPK Generator', icon: <EPKIcon className="h-5 w-5" /> },
-    { id: 'social', label: 'Social Studio', icon: <MegaphoneIcon className="h-5 w-5" /> },
+    { id: 'campaigns', label: t('sidebar.campaigns'), icon: <MailIcon className="h-5 w-5" /> },
+    { id: 'press', label: t('sidebar.pressOutreach'), icon: <PressIcon className="h-5 w-5" /> },
+    { id: 'radio', label: t('sidebar.radioOutreach'), icon: <RadioIcon className="h-5 w-5" /> },
+    { id: 'label', label: t('sidebar.labelReachout'), icon: <BuildingIcon className="h-5 w-5" /> },
+    { id: 'sound-match', label: t('sidebar.soundMatch'), icon: <SoundMatchIcon className="h-5 w-5" /> },
+    { id: 'epk', label: t('sidebar.epk'), icon: <EPKIcon className="h-5 w-5" /> },
+    { id: 'social', label: t('sidebar.socialStudio'), icon: <MegaphoneIcon className="h-5 w-5" /> },
   ];
 
   const businessNavItems = [
-    { id: 'financials', label: 'Financials', icon: <FinancialsIcon className="h-5 w-5" /> },
-    { id: 'invoices', label: 'Invoices', icon: <InvoiceIcon className="h-5 w-5" /> },
-    { id: 'royalties', label: 'Royalties', icon: <RoyaltiesIcon className="h-5 w-5" /> },
-    { id: 'merch', label: 'Merchandise', icon: <MerchIcon className="h-5 w-5" /> },
-    { id: 'funding', label: 'Funding', icon: <FundingIcon className="h-5 w-5" />},
+    { id: 'financials', label: t('sidebar.financials'), icon: <FinancialsIcon className="h-5 w-5" /> },
+    { id: 'invoices', label: t('sidebar.invoices'), icon: <InvoiceIcon className="h-5 w-5" /> },
+    { id: 'royalties', label: t('sidebar.royalties'), icon: <RoyaltiesIcon className="h-5 w-5" /> },
+    { id: 'merch', label: t('sidebar.merchandise'), icon: <MerchIcon className="h-5 w-5" /> },
+    { id: 'funding', label: t('sidebar.funding'), icon: <FundingIcon className="h-5 w-5" />},
   ];
   
   const networkNavItems = [
-    { id: 'fanbase', label: 'Fanbase', icon: <UsersIcon className="h-5 w-5" /> },
-    { id: 'collaborators', label: 'Collaborators', icon: <CollaboratorIcon className="h-5 w-5" /> },
+    { id: 'fanbase', label: t('sidebar.fanbase'), icon: <UsersIcon className="h-5 w-5" /> },
+    { id: 'collaborators', label: t('sidebar.collaborators'), icon: <CollaboratorIcon className="h-5 w-5" /> },
   ]
 
   const systemNavItems = [
-    { id: 'system-status', label: 'System Status', icon: <TerminalIcon className="h-5 w-5" /> },
-    { id: 'resources', label: 'Resources', icon: <ResourcesIcon className="h-5 w-5" /> },
+    { id: 'system-status', label: t('sidebar.systemStatus'), icon: <TerminalIcon className="h-5 w-5" /> },
+    { id: 'resources', label: t('sidebar.resources'), icon: <ResourcesIcon className="h-5 w-5" /> },
   ];
   
-  const settingsItem = { id: 'settings', label: 'Settings', icon: <SettingsIcon className="h-5 w-5" /> };
+  const settingsItem = { id: 'settings', label: t('sidebar.settings'), icon: <SettingsIcon className="h-5 w-5" /> };
   
   const currentUser: User = users[0] || { id: 'nouser', name: 'No User', systemRole: 'Member', primaryRole: '', secondaryRoles: [], avatar: '', email: '' };
 
@@ -170,7 +173,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBand
         onClick={() => setIsMobileOpen(!isMobileOpen)}
         className="fixed top-3 left-3 z-[60] p-2 bg-brand-bg-card rounded-md border border-brand-border lg:hidden text-white"
     >
-        <SlashIcon className="w-6 h-6" />
+        <FiMenu className="w-6 h-6" />
     </button>
 
     {/* Overlay for mobile */}
@@ -203,36 +206,43 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBand
         isAdmin={currentUser.systemRole === 'Admin'} 
       />
 
-      <nav className="flex-grow">
-        <NavSectionHeader title="Management" />
+      <nav className="mb-4">
+        <NavSectionHeader title={t('sidebar.management')} />
         <ul>
-          {managementNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+          {managementNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={activePage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
-        <NavSectionHeader title="Creative & Media" />
+
+        <NavSectionHeader title={t('sidebar.creative')} />
         <ul>
-            {creativeNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+          {creativeNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={activePage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
-        <NavSectionHeader title="Booking & Live" />
+
+        <NavSectionHeader title={t('sidebar.booking')} />
         <ul>
-            {liveNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+          {liveNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={activePage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
-        <NavSectionHeader title="Promotion & Outreach" />
+
+        <NavSectionHeader title={t('sidebar.growth')} />
         <ul>
-            {promotionNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+          {promotionNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={activePage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
-        <NavSectionHeader title="Business & Finance" />
+
+        <NavSectionHeader title={t('sidebar.business')} />
         <ul>
-            {businessNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+          {businessNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={activePage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
-        <NavSectionHeader title="Network" />
+
+        <NavSectionHeader title={t('sidebar.network')} />
         <ul>
-            {networkNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+          {networkNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={activePage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
-         <NavSectionHeader title="System" />
+
+        <NavSectionHeader title={t('sidebar.systemStatus')} />
         <ul>
-            {systemNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+          {systemNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={activePage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
       </nav>
+
       <div className="flex-shrink-0">
          <ul>
            <NavItem
@@ -244,11 +254,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBand
               onClick={() => setIsMobileOpen(false)}
             />
             <NavItem
-              key="help"
+              key="help-center"
               icon={<QuestionMarkCircleIcon className="h-5 w-5" />}
-              label="Help Center"
+              label={t('sidebar.helpCenter')}
               page="dashboard"
-              isActive={false}
+              isActive={activePage === 'dashboard'}
               onClick={onHelpClick}
             />
          </ul>

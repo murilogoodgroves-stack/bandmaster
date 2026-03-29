@@ -324,6 +324,12 @@ export const Festivals: React.FC<{
         );
     }, [savedFestivals, savedFestivalsFilter]);
 
+    const isDeadlineExpired = (deadline: string) => {
+        if (!deadline || deadline.toLowerCase().includes('see website') || deadline.toLowerCase().includes('ongoing')) return false;
+        const parsed = Date.parse(deadline);
+        if (isNaN(parsed)) return false;
+        return new Date(parsed) < new Date();
+    };
 
     return (
         <div>
@@ -443,7 +449,12 @@ export const Festivals: React.FC<{
                                 <tr key={festival.id} className="hover:bg-white/5">
                                     <td className="p-2 font-medium">{festival.name}</td>
                                     <td className="p-2">{festival.country}</td>
-                                    <td className="p-2 text-yellow-300">{festival.submissionDeadline}</td>
+                                    <td className="p-2 text-yellow-300">
+                                        {festival.submissionDeadline}
+                                        {isDeadlineExpired(festival.submissionDeadline) && (
+                                            <span className="ml-2 inline-flex items-center text-xs font-semibold text-red-300 bg-red-900/40 px-2 py-1 rounded-full">Expired</span>
+                                        )}
+                                    </td>
                                     <td className="p-2 text-right">
                                         <a href={festival.url} target="_blank" rel="noopener noreferrer" className="p-1 hover:bg-gray-600 rounded-full inline-block mr-2" title="Visit Website"><ExternalLinkIcon className="w-4 h-4 text-blue-400"/></a>
                                         <button onClick={() => handleDeleteSavedFestival(festival.id)} className="p-1 hover:bg-gray-600 rounded-full" title="Delete"><TrashIcon className="w-4 h-4 text-red-500"/></button>

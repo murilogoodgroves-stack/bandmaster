@@ -4,23 +4,27 @@ import type { Transaction, Budget, User } from '../types';
 import { TransactionType } from '../types';
 import { PlusIcon, TrashIcon, EditIcon, SaveIcon, SlashIcon, RefreshCwIcon } from './icons';
 import { Tip } from './Tip';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const incomeCategories = ["Gig", "Merch", "Streaming", "Other"];
 const expenseCategories = ["Gear", "Studio", "Travel", "Marketing", "Other"];
 
 const BarChart: React.FC<{data: {label: string, income: number, expense: number}[]}> = ({data}) => {
-    const maxVal = Math.max(...data.map(d => Math.max(d.income, d.expense)), 1);
     return (
-        <div className="bg-gray-900 p-4 rounded-lg h-64 flex items-end justify-around gap-4">
-            {data.map(({label, income, expense}) => (
-                <div key={label} className="flex-1 flex flex-col items-center">
-                    <div className="w-full flex justify-center items-end gap-1 h-full">
-                        <div className="w-1/2 bg-spotify-green rounded-t-sm transition-all duration-300" style={{height: `${(income/maxVal)*100}%`}} title={`Income: $${income.toFixed(2)}`}></div>
-                        <div className="w-1/2 bg-red-500 rounded-t-sm transition-all duration-300" style={{height: `${(expense/maxVal)*100}%`}} title={`Expense: $${expense.toFixed(2)}`}></div>
-                    </div>
-                    <span className="text-xs text-gray-400 mt-2">{label}</span>
-                </div>
-            ))}
+        <div className="bg-gray-900 p-4 rounded-lg h-64">
+            <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                    <XAxis dataKey="label" stroke="#94a3b8" />
+                    <YAxis stroke="#94a3b8" />
+                    <Tooltip 
+                        contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
+                        labelStyle={{ color: '#e2e8f0' }}
+                    />
+                    <Bar dataKey="income" fill="#10b981" name="Receita" />
+                    <Bar dataKey="expense" fill="#ef4444" name="Despesa" />
+                </BarChart>
+            </ResponsiveContainer>
         </div>
     );
 };
