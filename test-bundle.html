@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BandHQ Test</title>
+    <style>
+      body {
+        font-family: monospace;
+        background: #111;
+        color: #0f0;
+        padding: 20px;
+        margin: 0;
+      }
+      #console {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        border: 1px solid #0f0;
+        padding: 10px;
+        max-height: 80vh;
+        overflow-y: auto;
+      }
+      .error { color: #f00; }
+      .warning { color: #ff0; }
+      .success { color: #0f0; }
+    </style>
+  </head>
+  <body>
+    <h1>BandHQ Bundle Test</h1>
+    <div id="console"></div>
+    <div id="root"></div>
+    
+    <script>
+      const logs = [];
+      const originalLog = console.log;
+      const originalError = console.error;
+      const originalWarn = console.warn;
+      
+      function log(msg, type = '') {
+        logs.push({ msg, type });
+        const consoleDiv = document.getElementById('console');
+        const line = document.createElement('div');
+        line.className = type;
+        line.textContent = String(msg);
+        consoleDiv.appendChild(line);
+        consoleDiv.scrollTop = consoleDiv.scrollHeight;
+      }
+      
+      console.log = (...args) => {
+        log(args.join(' '), 'success');
+        originalLog(...args);
+      };
+      
+      console.error = (...args) => {
+        log('[ERROR] ' + args.join(' '), 'error');
+        originalError(...args);
+      };
+      
+      console.warn = (...args) => {
+        log('[WARN] ' + args.join(' '), 'warning');
+        originalWarn(...args);
+      };
+      
+      window.addEventListener('error', (event) => {
+        log(`[UNCAUGHT ERROR] ${event.message}\n  at ${event.filename}:${event.lineno}:${event.colno}`, 'error');
+      });
+      
+      log('Starting BandHQ bundle test...', 'success');
+      log('Loading bundle...', 'success');
+    </script>
+    
+    <link rel="stylesheet" crossorigin href="/assets/index-BVEOgiTn.css">
+    <script type="module" crossorigin src="/assets/index-I86YVVnB.js"></script>
+  </body>
+</html>
