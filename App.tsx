@@ -113,7 +113,7 @@ const NewBandModal: React.FC<{
     const [name, setName] = useState('');
     const [genre, setGenre] = useState('');
     const [errors, setErrors] = useState<{name?: string, genre?: string}>({});
-    const t = useTranslation();
+    const { t } = useTranslation();
 
     const validateForm = () => {
         const newErrors: {name?: string, genre?: string} = {};

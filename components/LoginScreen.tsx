@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { BandmasterIcon } from './icons';
 
 interface LoginScreenProps {
   onLogin: (userId: string, username: string) => void;

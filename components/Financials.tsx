@@ -4,16 +4,16 @@ import type { Transaction, Budget, User } from '../types';
 import { TransactionType } from '../types';
 import { PlusIcon, TrashIcon, EditIcon, SaveIcon, SlashIcon, RefreshCwIcon } from './icons';
 import { Tip } from './Tip';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart } from 'recharts';
 
 const incomeCategories = ["Gig", "Merch", "Streaming", "Other"];
 const expenseCategories = ["Gear", "Studio", "Travel", "Marketing", "Other"];
 
-const BarChart: React.FC<{data: {label: string, income: number, expense: number}[]}> = ({data}) => {
+const FinancialBarChart: React.FC<{data: {label: string, income: number, expense: number}[]}> = ({data}) => {
     return (
         <div className="bg-gray-900 p-4 rounded-lg h-64">
             <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data}>
+                <ComposedChart data={data}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
                     <XAxis dataKey="label" stroke="#94a3b8" />
                     <YAxis stroke="#94a3b8" />
@@ -23,7 +23,7 @@ const BarChart: React.FC<{data: {label: string, income: number, expense: number}
                     />
                     <Bar dataKey="income" fill="#10b981" name="Receita" />
                     <Bar dataKey="expense" fill="#ef4444" name="Despesa" />
-                </BarChart>
+                </ComposedChart>
             </ResponsiveContainer>
         </div>
     );
@@ -225,7 +225,7 @@ export const Financials: React.FC<FinancialsProps> = ({
             
             <div className="bg-gray-800 p-6 rounded-xl mb-8 shadow-lg">
                 <h2 className="text-2xl font-bold mb-4">Monthly Overview</h2>
-                <BarChart data={chartData}/>
+                <FinancialBarChart data={chartData}/>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">

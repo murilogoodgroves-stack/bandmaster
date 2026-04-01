@@ -175,6 +175,7 @@ export const RadioOutreach: React.FC<RadioOutreachProps> = ({ bands, radioContac
   const [editingContact, setEditingContact] = useState<RadioContact | null>(null);
   const [contactForEmail, setContactForEmail] = useState<PressContact | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
+  const [showTip, setShowTip] = useState(true);
 
   const showNotification = (message: string) => {
     setNotification(message);

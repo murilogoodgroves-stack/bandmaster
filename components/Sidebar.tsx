@@ -95,7 +95,7 @@ const NavSectionHeader: React.FC<{ title: string }> = ({ title }) => (
 );
 
 export const Sidebar: React.FC<SidebarProps> = ({ activePage, onPageChange, onNewBandClick }) => {
-  const t = useTranslation();
+  const { t } = useTranslation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const managementNavItems = [
