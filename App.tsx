@@ -595,7 +595,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen bg-brand-bg-outer text-gray-200">
+    <div className="flex min-h-screen bg-brand-bg-outer text-gray-200 pb-20 md:pb-0">
       <AIStatusWarning />
       <Sidebar 
         currentPage={page} 
@@ -607,7 +607,7 @@ const App: React.FC = () => {
         users={users}
         setUsers={setUsers}
       />
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto bg-brand-bg-content m-4 rounded-lg">
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative pt-16 bg-brand-bg-content m-4 rounded-lg">
         <BackgroundTaskBar tasks={backgroundTasks} />
         {renderPage()}
       </main>

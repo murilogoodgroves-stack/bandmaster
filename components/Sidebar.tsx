@@ -179,7 +179,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBand
     {/* Overlay for mobile */}
     {isMobileOpen && <div className="fixed inset-0 bg-black/50 z-[55] lg:hidden" onClick={() => setIsMobileOpen(false)} />}
 
-    <aside className={`flex flex-col w-64 bg-brand-bg-sidebar text-gray-100 min-h-screen p-4 fixed lg:relative top-0 left-0 h-screen overflow-y-auto border-r border-brand-border z-[60] transition-transform duration-300 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+    <aside className={`flex flex-col w-64 bg-brand-bg-sidebar text-gray-100 min-h-screen p-4 fixed lg:sticky top-0 h-screen overflow-y-auto border-r border-brand-border z-[60] transition-transform duration-300 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
       <div className="flex items-center mb-6 flex-shrink-0 px-2 pt-2 lg:pt-0 pl-10 lg:pl-2 justify-between">
         <div className="flex flex-col">
             <h1 className="text-xl font-bold text-white tracking-tight leading-none truncate max-w-[150px]">
