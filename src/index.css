@@ -2,6 +2,65 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Define CSS variables for brand colors */
+:root {
+  --brand-accent: #E11D48;
+  --brand-accent-dark: #BE123C;
+  --brand-bg-outer: #111111;
+  --brand-bg-sidebar: #181818;
+  --brand-bg-content: #1F1F1F;
+  --brand-bg-card: #282828;
+  --brand-border: #383838;
+}
+
+/* Brand color utility classes */
+@layer utilities {
+  .bg-brand-accent { @apply bg-[#E11D48]; }
+  .bg-brand-accent-dark { @apply bg-[#BE123C]; }
+  .bg-brand-bg-outer { @apply bg-[#111111]; }
+  .bg-brand-bg-sidebar { @apply bg-[#181818]; }
+  .bg-brand-bg-content { @apply bg-[#1F1F1F]; }
+  .bg-brand-bg-card { @apply bg-[#282828]; }
+  .bg-brand-border { @apply bg-[#383838]; }
+  
+  .text-brand-accent { @apply text-[#E11D48]; }
+  .text-brand-accent-dark { @apply text-[#BE123C]; }
+  .text-brand-bg-outer { @apply text-[#111111]; }
+  .text-brand-bg-sidebar { @apply text-[#181818]; }
+  .text-brand-bg-content { @apply text-[#1F1F1F]; }
+  .text-brand-bg-card { @apply text-[#282828]; }
+  .text-brand-border { @apply text-[#383838]; }
+  
+  .border-brand-accent { @apply border-[#E11D48]; }
+  .border-brand-accent-dark { @apply border-[#BE123C]; }
+  .border-brand-bg-outer { @apply border-[#111111]; }
+  .border-brand-bg-sidebar { @apply border-[#181818]; }
+  .border-brand-bg-content { @apply border-[#1F1F1F]; }
+  .border-brand-bg-card { @apply border-[#282828]; }
+  .border-brand-border { @apply border-[#383838]; }
+  
+  .bg-brand-accent\/10 { background-color: rgba(225, 29, 72, 0.1); }
+  .bg-brand-accent\/20 { background-color: rgba(225, 29, 72, 0.2); }
+  .bg-brand-accent\/50 { background-color: rgba(225, 29, 72, 0.5); }
+  
+  .border-brand-accent\/10 { border-color: rgba(225, 29, 72, 0.1); }
+  .border-brand-accent\/20 { border-color: rgba(225, 29, 72, 0.2); }
+  .border-brand-accent\/50 { border-color: rgba(225, 29, 72, 0.5); }
+  
+  .ring-brand-accent\/50 { --tw-ring-color: rgba(225, 29, 72, 0.5); }
+  
+  .hover\:bg-brand-accent:hover { @apply bg-[#E11D48]; }
+  .hover\:bg-brand-accent-dark:hover { @apply bg-[#BE123C]; }
+  .hover\:bg-brand-accent\/20:hover { background-color: rgba(225, 29, 72, 0.2); }
+  
+  .hover\:border-brand-accent:hover { @apply border-[#E11D48]; }
+  .hover\:border-brand-accent-dark:hover { @apply border-[#BE123C]; }
+  .hover\:border-brand-accent\/50:hover { border-color: rgba(225, 29, 72, 0.5); }
+  
+  .focus\:ring-brand-accent:focus { --tw-ring-color: #E11D48; }
+  .focus\:ring-brand-accent\/50:focus { --tw-ring-color: rgba(225, 29, 72, 0.5); }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
