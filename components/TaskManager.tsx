@@ -191,7 +191,6 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     const grouped: Record<TaskStatus, Task[]> = {
       [TaskStatus.ToDo]: [],
       [TaskStatus.InProgress]: [],
-      [TaskStatus.Review]: [],
       [TaskStatus.Done]: [],
     };
     filteredTasks.forEach(task => {

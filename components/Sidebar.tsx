@@ -94,7 +94,7 @@ const NavSectionHeader: React.FC<{ title: string }> = ({ title }) => (
     </h3>
 );
 
-export const Sidebar: React.FC<SidebarProps> = ({ activePage, onPageChange, onNewBandClick }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBandId, onBandChange, onNewBandClick, onHelpClick, users, setUsers }) => {
   const { t } = useTranslation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -171,9 +171,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onPageChange, onNe
     {/* Mobile Toggle */}
     <button 
         onClick={() => setIsMobileOpen(!isMobileOpen)}
-        className="fixed top-3 left-3 z-[60] p-2 bg-brand-bg-card rounded-md border border-brand-border lg:hidden text-white"
+        className="fixed top-3 left-3 z-[60] p-2 bg-brand-bg-card rounded-md border border-brand-border lg:hidden text-white w-10 h-10 flex items-center justify-center"
     >
-        <FiMenu className="w-6 h-6" />
+        <FiMenu size={24} />
     </button>
 
     {/* Overlay for mobile */}
@@ -209,37 +209,37 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onPageChange, onNe
       <nav className="mb-4">
         <NavSectionHeader title={t('sidebar.management')} />
         <ul>
-          {managementNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={activePage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+          {managementNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
 
         <NavSectionHeader title={t('sidebar.creative')} />
         <ul>
-          {creativeNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={activePage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+          {creativeNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
 
         <NavSectionHeader title={t('sidebar.booking')} />
         <ul>
-          {liveNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={activePage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+          {liveNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
 
         <NavSectionHeader title={t('sidebar.growth')} />
         <ul>
-          {promotionNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={activePage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+          {promotionNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
 
         <NavSectionHeader title={t('sidebar.business')} />
         <ul>
-          {businessNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={activePage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+          {businessNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
 
         <NavSectionHeader title={t('sidebar.network')} />
         <ul>
-          {networkNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={activePage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+          {networkNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
 
         <NavSectionHeader title={t('sidebar.systemStatus')} />
         <ul>
-          {systemNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={activePage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+          {systemNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
         </ul>
       </nav>
 
@@ -258,7 +258,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onPageChange, onNe
               icon={<QuestionMarkCircleIcon className="h-5 w-5" />}
               label={t('sidebar.helpCenter')}
               page="dashboard"
-              isActive={activePage === 'dashboard'}
+              isActive={currentPage === 'dashboard'}
               onClick={onHelpClick}
             />
          </ul>

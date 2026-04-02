@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import useLocalStorage from '../hooks/useLocalStorage';
 import type { Tour, Show, Setlist, Venue } from '../types';
 import { PlusIcon, TrashIcon, WandIcon, CheckCircleIcon, PlusCircleIcon } from './icons';
+import { Tip } from './Tip';
 import { initialTours, initialSetlists, initialVenues } from '../data/initialData';
 import { findTourDatesForArtist, findVenueContactInfo } from '../services/aiService';
 
