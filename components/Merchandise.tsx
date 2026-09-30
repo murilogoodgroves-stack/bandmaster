@@ -4,6 +4,7 @@ import type { MerchItem, Transaction, MerchVariant } from '../types';
 import { TransactionType } from '../types';
 import { PlusIcon, TrashIcon, ChevronDownIcon, EditIcon } from './icons';
 import { initialMerch, initialTransactions } from '../data/initialData';
+import { FinanceMerchImportAssistant } from './FinanceMerchImportAssistant';
 
 const merchTypes = ["T-Shirt", "Vinyl", "CD", "Poster", "Other"];
 
@@ -69,7 +70,9 @@ export const Merchandise: React.FC<{
     transactions: Transaction[];
     setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
     activeBandId: string;
-}> = ({ merch: allMerch, setMerch: setAllMerch, transactions: allTransactions, setTransactions: setAllTransactions, activeBandId }) => {
+    cashOnHand: number;
+    setCashOnHand: (value: number) => void;
+}> = ({ merch: allMerch, setMerch: setAllMerch, transactions: allTransactions, setTransactions: setAllTransactions, activeBandId, cashOnHand, setCashOnHand }) => {
   
   const merch = useMemo(() => allMerch.filter(m => m.bandId === activeBandId), [allMerch, activeBandId]);
   
@@ -219,6 +222,16 @@ export const Merchandise: React.FC<{
           {showForm ? 'Cancel' : 'Add Item'}
         </button>
       </div>
+
+      <FinanceMerchImportAssistant
+        activeBandId={activeBandId}
+        merch={allMerch}
+        setMerch={setAllMerch}
+        transactions={allTransactions}
+        setTransactions={setAllTransactions}
+        cashOnHand={cashOnHand}
+        setCashOnHand={setCashOnHand}
+      />
 
       {showForm && (
         <div className="bg-gray-800 p-6 rounded-xl mb-8 shadow-lg">

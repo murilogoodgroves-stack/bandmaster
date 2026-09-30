@@ -1,9 +1,10 @@
 
 import React, { useState, useMemo } from 'react';
-import type { Transaction, Budget, User } from '../types';
-import { TransactionType } from '../types';
+import type { Transaction, Budget, User, MerchItem, MemberTransaction } from '../types';
+import { TransactionType, MemberTransactionType } from '../types';
 import { PlusIcon, TrashIcon, EditIcon, SaveIcon, SlashIcon, RefreshCwIcon } from './icons';
 import { Tip } from './Tip';
+import { FinanceMerchImportAssistant } from './FinanceMerchImportAssistant';
 
 const incomeCategories = ["Gig", "Merch", "Streaming", "Other"];
 const expenseCategories = ["Gear", "Studio", "Travel", "Marketing", "Other"];
@@ -73,6 +74,10 @@ interface FinancialsProps {
     setSplits: React.Dispatch<React.SetStateAction<{[key: string]: number}>>;
     cashOnHand: number;
     setCashOnHand: React.Dispatch<React.SetStateAction<number>>;
+    merch?: MerchItem[];
+    setMerch?: React.Dispatch<React.SetStateAction<MerchItem[]>>;
+    memberTransactions?: MemberTransaction[];
+    setMemberTransactions?: React.Dispatch<React.SetStateAction<MemberTransaction[]>>;
 }
 
 export const Financials: React.FC<FinancialsProps> = ({ 
@@ -80,7 +85,9 @@ export const Financials: React.FC<FinancialsProps> = ({
     transactions: allTransactions, setTransactions: setAllTransactions,
     budgets: allBudgets, setBudgets: setAllBudgets,
     splits, setSplits,
-    cashOnHand, setCashOnHand
+    cashOnHand, setCashOnHand,
+    merch = [], setMerch = () => undefined,
+    memberTransactions = [], setMemberTransactions = () => undefined,
 }) => {
 
   const transactions = useMemo(() => allTransactions.filter(t => t.bandId === activeBandId), [allTransactions, activeBandId]);
@@ -165,6 +172,22 @@ export const Financials: React.FC<FinancialsProps> = ({
   
   const totalSplit = (Object.values(splits) as number[]).reduce((sum, s) => sum + s, 0);
 
+  const memberBalances = useMemo(() => {
+    const balances = users.map(user => {
+      let balance = 0;
+      memberTransactions
+        .filter(entry => entry.memberId === user.id && entry.bandId === activeBandId)
+        .forEach(entry => {
+          if (entry.type === MemberTransactionType.Contribution) balance += entry.amount;
+          if (entry.type === MemberTransactionType.Withdrawal) balance -= entry.amount;
+          if (entry.type === MemberTransactionType.Settlement) balance += entry.amount;
+        });
+      return { user, balance };
+    });
+
+    return balances.filter(item => item.balance !== 0 || users.some(user => user.id === item.user.id));
+  }, [users, memberTransactions, activeBandId]);
+
   return (
     <div>
         <div className="flex justify-between items-center mb-6">
@@ -178,6 +201,35 @@ export const Financials: React.FC<FinancialsProps> = ({
             <Tip onDismiss={() => setShowTip(false)}>
                 Set your band's starting 'Cash on Hand' to get a complete picture of your total funds. Use 'Member Splits' to see each person's calculated earnings.
             </Tip>
+        )}
+
+        <FinanceMerchImportAssistant
+            activeBandId={activeBandId}
+            merch={merch}
+            setMerch={setMerch as React.Dispatch<React.SetStateAction<MerchItem[]>>}
+            transactions={allTransactions}
+            setTransactions={setAllTransactions}
+            memberTransactions={memberTransactions}
+            setMemberTransactions={setMemberTransactions as React.Dispatch<React.SetStateAction<MemberTransaction[]>>}
+            users={users}
+            cashOnHand={cashOnHand}
+            setCashOnHand={(value) => setCashOnHand(value as number)}
+        />
+
+        {memberBalances.length > 0 && (
+            <div className="bg-gray-800 p-6 rounded-xl mb-8 shadow-lg">
+                <h2 className="text-2xl font-bold mb-4">Member credits / balances</h2>
+                <div className="space-y-3">
+                    {memberBalances.map(({ user, balance }) => (
+                        <div key={user.id} className="flex items-center justify-between bg-gray-900 rounded-lg p-3">
+                            <span>{user.name}</span>
+                            <span className={balance >= 0 ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>
+                                {balance >= 0 ? '+$' : '-$'}{Math.abs(balance).toFixed(2)}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            </div>
         )}
         
         {/* Tabs */}

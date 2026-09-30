@@ -515,7 +515,7 @@ export const Settings: React.FC<SettingsProps> = ({ activeBandId, bands, setBand
                                 </div>
 
                                 <div className="bg-blue-600/20 border border-blue-500/50 p-3 rounded-lg">
-                                    <p className="text-xs text-blue-200">💡 O sistema alterna automaticamente entre APIs OpenRouter → Groq → MiniMax → Gemini para garantir funcionamento contínuo mesmo quando uma atinge o limite.</p>
+                                    <p className="text-xs text-blue-200">💡 The system automatically rotates between OpenRouter → Groq → MiniMax → Gemini to keep things running even when one provider hits a limit.</p>
                                 </div>
                             </div>
                         ) : (

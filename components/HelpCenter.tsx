@@ -15,347 +15,346 @@ const HELP_TOPICS: HelpTopic[] = [
   {
     id: 'dashboard',
     icon: '📊',
-    title: 'Dashboard - Seu Painel de Controle',
-    category: 'Começando',
-    description: 'O Dashboard é a primeira tela que você vê. Mostra um resumo rápido de tudo que está acontecendo com sua música.',
+    title: 'Dashboard - Your Control Center',
+    category: 'Getting Started',
+    description: 'The dashboard is the first screen you see. It gives you a quick overview of what is happening with your music.',
     steps: [
-      'Acesse ao fazer login',
-      'Veja seus próximos shows, releases e tarefas',
-      'Clique em qualquer card para ir para mais detalhes',
-      'Use para monitorar o progresso geral',
+      'Open it after login',
+      'See upcoming shows, releases, and tasks',
+      'Click any card to drill deeper',
+      'Use it to monitor overall progress',
     ],
     tips: [
-      'O Dashboard atualiza em tempo real',
-      'Você pode customizar o que aparece nas configurações',
-      'Todos os números são interativos - clique neles!',
+      'The dashboard updates in real time',
+      'You can customize what appears in Settings',
+      'All numbers are interactive — click them!',
     ]
   },
   {
     id: 'releases',
     icon: '💿',
-    title: 'Releases - Planejando Seu Lançamento',
-    category: 'Música',
-    description: 'Gerencie lançamentos de singles, EPs e álbuns com um checklist completo de tarefas pré e pós-lançamento.',
+    title: 'Releases - Planning Your Launch',
+    category: 'Music',
+    description: 'Manage singles, EPs, and album launches with a complete pre and post-release checklist.',
     steps: [
-      'Clique em "Releases" na barra lateral',
-      'Clique "Plan New Release" para criar um novo lançamento',
-      'Defina a data de lançamento (considere 4-6 semanas antes)',
-      'Preencha o checklist com tarefas específicas',
-      'Atribua tarefas para membros da equipe',
-      'Acompanhe o progresso com a barra verde',
+      'Click "Releases" in the sidebar',
+      'Click "Plan New Release" to create a release',
+      'Set the release date (ideally 4-6 weeks ahead)',
+      'Fill out the checklist with specific tasks',
+      'Assign tasks to team members',
+      'Track progress with the green status bar',
     ],
     tips: [
-      'Use o checkbox do lado esquerdo para marcar tarefas como concluídas',
-      'A IA pode gerar um plano automático para você',
-      'Você pode fazer upload de arte da capa aqui',
-      'As tarefas aparecem no seu Calendar para não esquecer',
+      'Use the checkbox on the left to mark tasks as complete',
+      'AI can generate a launch plan for you',
+      'You can upload cover art here',
+      'Tasks appear in your calendar so nothing gets missed',
     ]
   },
   {
     id: 'campaigns',
     icon: '📧',
-    title: 'Campaigns - Enviando Emails Profissionais',
-    category: 'Contatos',
-    description: 'Crie campanhas de email para imprensa, rádio, labels e fãs. A IA gera conteúdo personalizado se você quiser.',
+    title: 'Campaigns - Sending Professional Emails',
+    category: 'Contacts',
+    description: 'Create email campaigns for press, radio, labels, and fans. AI can generate personalized content if needed.',
     steps: [
-      'Clique em "Campaigns" na barra lateral',
-      'Clique "New Campaign"',
-      'Passo 1: Configure o nome e tipo de campanha (Press, Radio, etc)',
-      'Passo 2: Selecione os destinatários da sua lista de contatos',
-      'Passo 3: Escreva o email (ou deixe a IA gerar)',
-      'Passo 4: Revise e envie agora ou agende para depois',
+      'Click "Campaigns" in the sidebar',
+      'Click "New Campaign"',
+      'Step 1: name the campaign and select the type',
+      'Step 2: choose recipients from your contact list',
+      'Step 3: write the email or let AI draft it',
+      'Step 4: review and send now or schedule later',
     ],
     tips: [
-      'Use "Import from EPK" para gerar emails baseados na sua banda',
-      'Você pode agendar "follow-ups" automáticos se não tiver resposta',
-      'Há tonalidades diferentes: Professional, Casual, Enthusiastic',
-      'Personalizações como {{name}} e {{outlet}} funcionam',
+      'Use "Import from EPK" to generate emails based on your band',
+      'You can schedule automatic follow-ups if there is no response',
+      'Different tones are available: Professional, Casual, Enthusiastic',
+      'Placeholders like {{name}} and {{outlet}} work as expected',
     ]
   },
   {
     id: 'tours',
     icon: '🚌',
-    title: 'Tours - Organizando Seus Shows',
+    title: 'Tours - Organizing Your Shows',
     category: 'Shows',
-    description: 'Crie tours com múltiplos shows, venues e horários. Integre setlists e compartilhe com a banda.',
+    description: 'Create tours with multiple dates, venues, and time slots. Integrate setlists and share details with the band.',
     steps: [
-      'Clique em "Tours" na barra lateral',
-      'Clique "New Tour" para criar uma nova turnê',
-      'Escolha datas de início e fim',
-      'Adicione shows clicando "Add Show"',
-      'Para cada show: Adicione venue, data, horário',
-      'Adicione timeslots em cada show',
-      'Escolha setlist para cada show',
+      'Click "Tours" in the sidebar',
+      'Click "New Tour" to create a new tour',
+      'Choose start and end dates',
+      'Add shows using "Add Show"',
+      'For each show, add venue, date, and time',
+      'Create time slots and assign a setlist',
     ],
     tips: [
-      'Você pode importar um plano de tour existente',
-      'Venues aparecem automático se já estão salvos',
-      'A IA pode sugerir próximos locais baseado em padrões anteriores',
-      'Sincronize com seu Calendar para não perder datas',
+      'You can import a tour plan that already exists',
+      'Venues appear automatically if already saved',
+      'AI can suggest nearby places based on previous patterns',
+      'Sync with your calendar to avoid missing dates',
     ]
   },
   {
     id: 'press',
     icon: '📰',
-    title: 'Press Outreach - Conectar com Jornalistas',
-    category: 'Contatos',
-    description: 'Encontre jornalistas que cobrem artistas similares a você. Use Sound Match para descobertas automáticas.',
+    title: 'Press Outreach - Connecting with Journalists',
+    category: 'Contacts',
+    description: 'Find journalists who cover artists similar to you. Use Sound Match to discover opportunities automatically.',
     steps: [
-      'Clique em "Press" na barra lateral',
-      'Cole um artista similar no campo "Find New Contacts"',
-      'A IA encontrará jornalistas que cobrem esse artista',
-      'Clique "Add" para adicionar à sua lista',
-      'Use "Add Contact" para adicionar manualmente',
-      'Organize por tier (A, B, C)',
+      'Click "Press" in the sidebar',
+      'Paste a similar artist in the "Find New Contacts" field',
+      'AI will find journalists who cover that artist',
+      'Click "Add" to save them to your list',
+      'Use "Add Contact" to add one manually',
+      'Organize contacts by tier (A, B, C)',
     ],
     tips: [
-      'Sound Match descobre jornalistas que REALMENTE gostam do seu estilo',
-      'Você pode importar um CSV com seus contatos',
-      'Use campanhas para enviar pitches para múltiplos jornalistas',
-      'Importe contatos do seu EPK automaticamente',
+      'Sound Match finds journalists who truly match your style',
+      'You can import a CSV with your contacts',
+      'Use campaigns to send pitches to multiple journalists',
+      'Import contacts from your EPK automatically',
     ]
   },
   {
     id: 'soundmatch',
     icon: '🎯',
-    title: 'Sound Match - IA Encontra Oportunidades',
-    category: 'IA & Inteligência',
-    description: 'Cole seu URL do Spotify. A IA analisa seu som e encontra contatos relevantes em imprensa e rádio compartilhando seu estilo.',
+    title: 'Sound Match - AI Finds Opportunities',
+    category: 'AI & Intelligence',
+    description: 'Paste your Spotify URL. AI analyzes your sound and finds relevant press and radio opportunities based on your style.',
     steps: [
-      'Url do seu artista no Spotify (ex: open.spotify.com/artist/...)',
-      'Clique "Analyze My Sound"',
-      'Revise a análise gerada (gêneros, moods, artistas similares)',
-      'Clique "Find Opportunities"',
-      'A IA encontra jornalistas e DJs que adoram artistas como você',
-      'Salve contatos diretamente para Press ou Radio',
+      'Add your Spotify artist URL',
+      'Click "Analyze My Sound"',
+      'Review the generated analysis (genres, moods, similar artists)',
+      'Click "Find Opportunities"',
+      'AI suggests journalists and DJs who match your sound',
+      'Save contacts directly to Press or Radio',
     ],
     tips: [
-      'Sound Match é melhor que busca genérica por gênero',
-      'Baseado em dados reais de quem cobriu artistas similares',
-      'Você pode fazer isso toda vez que lança algo novo',
-      'As descobertas são salvas automaticamente',
+      'Sound Match is better than generic genre searches',
+      'It is based on real data from similar artists',
+      'You can do this whenever you release something new',
+      'Discoveries are saved automatically',
     ]
   },
   {
     id: 'calendar',
     icon: '📅',
-    title: 'Calendar - Veja Tudo em Um Lugar',
-    category: 'Agendamento',
-    description: 'Seu calendário unificado mostra shows, releases, deadlines, tarefas e lembretes - tudo sincronizado.',
+    title: 'Calendar - Everything in One Place',
+    category: 'Scheduling',
+    description: 'Your unified calendar shows shows, releases, deadlines, tasks, and reminders in one place.',
     steps: [
-      'Clique em "Calendar" na barra lateral',
-      'Escolha entre vista Semana, Mês ou Ano',
-      'Veja eventos de releases, tours, tarefas e fundos',
-      'Clique em um evento para ver mais detalhes',
-      'Aproveita o botão + para adicionar eventos manuais',
+      'Click "Calendar" in the sidebar',
+      'Choose between weekly, monthly, or yearly views',
+      'See event types such as releases, tours, tasks, and funding',
+      'Click an event to view more details',
+      'Use the + button to add manual events',
     ],
     tips: [
-      'Lembretes aparecem automaticamente 7, 3 e 1 dia antes',
-      'Você pode navegar rápido usando as setas',
-      'A cor do evento indica o tipo (rosa=gig, azul=studio, etc)',
-      'Materiais importantes aparecem com ícone 📎',
+      'Reminders appear automatically 7, 3, and 1 day before',
+      'Use the arrows to navigate quickly',
+      'Event color indicates the type (pink = gig, blue = studio, etc.)',
+      'Important materials appear with a paperclip icon',
     ]
   },
   {
     id: 'financials',
     icon: '💰',
-    title: 'Financials - Gerenciando Seu Dinheiro',
-    category: 'Negócio',
-    description: 'Rastreie rendas, despesas e divisão de lucros entre membros da banda.',
+    title: 'Financials - Managing Your Money',
+    category: 'Business',
+    description: 'Track income, expenses, and profit splits between band members.',
     steps: [
-      'Clique em "Financials" na barra lateral',
-      'Visualize rendas por tipo (merch, shows, streams, etc)',
-      'Adicione transações manualmente',
-      'Configure como dividir o dinheiro entre membros',
-      'Veja gráficos de receita mensal',
+      'Click "Financials" in the sidebar',
+      'View income types (merch, shows, streams, etc.)',
+      'Add transactions manually',
+      'Set how to split money between members',
+      'Review monthly revenue trends',
     ],
     tips: [
-      'A divisão de lucros é por banda, não individual',
-      'Você pode sincronizar com bancos depois (recursos futuros)',
-      'Todos os números são em tempo real',
-      'Exporte relatórios para sua contadora',
+      'Profit splits are band-based, not individual',
+      'You can sync with banks later (future feature)',
+      'All numbers update in real time',
+      'Export reports for your accountant',
     ]
   },
   {
     id: 'taskmanager',
     icon: '✅',
-    title: 'Task Manager - Organize Suas Tarefas',
-    category: 'Produtividade',
-    description: 'Sistema Kanban simples: To Do → In Progress → Review → Done. Perfeito para coordenar com sua equipe.',
+    title: 'Task Manager - Organize Your Tasks',
+    category: 'Productivity',
+    description: 'A simple Kanban workflow: To Do → In Progress → Review → Done. Perfect for coordinating with your team.',
     steps: [
-      'Clique em "Task Manager" na barra lateral',
-      'Clique "+ New Task" para criar uma tarefa',
-      'Defina prioridade, data limite e responsável',
-      'Tarefas aparecem em colunas por status',
-      'Clique "Start" para mover para In Progress',
-      'Clique "Done" quando terminar',
+      'Click "Task Manager" in the sidebar',
+      'Click "+ New Task" to create a task',
+      'Set priority, deadline, and assignee',
+      'Tasks appear in columns by status',
+      'Click "Start" to move it to In Progress',
+      'Click "Done" when finished',
     ],
     tips: [
-      'Tarefas do Release aparecem automaticamente aqui',
-      'Tarefas atrasadas aparecem com ⚠️ em vermelho',
-      'Filtre por pessoa ou prioridade',
-      'A IA pode sugerir próximas tarefas',
+      'Release tasks appear here automatically',
+      'Late tasks appear with a red ⚠️ indicator',
+      'Filter by person or priority',
+      'AI can suggest the next tasks',
     ]
   },
   {
     id: 'productions',
     icon: '🎚️',
-    title: 'Production - Organizando Suas Faixas',
-    category: 'Criação',
-    description: 'Rastreie canções em produção, estúdio, mixagem e masterização. Veja progresso de cada faixa.',
+    title: 'Production - Organizing Your Tracks',
+    category: 'Creation',
+    description: 'Track songs in production, recording, mixing, and mastering. See progress for each track.',
     steps: [
-      'Clique em "Production" na barra lateral',
-      'Clique "+ New Song" para adicionar uma música',
-      'Defina compositor, gênero e inspirações',
-      'Altere o status conforme progride (Demo → Studio → Mix → Master)',
-      'Adicione notas sobre sessions e feedback',
+      'Click "Production" in the sidebar',
+      'Click "+ New Song" to add a track',
+      'Set composer, genre, and inspirations',
+      'Update status as it evolves (Demo → Studio → Mix → Master)',
+      'Add notes for sessions and feedback',
     ],
     tips: [
-      'Cada música tem sua própria timeline',
-      'Você pode adicionar links do Drive/Dropbox para demos',
-      'Compartilhe a timeline com seu produtor/engenheiro',
-      'Acumule histórico completo de como a música evoluiu',
+      'Each song has its own timeline',
+      'You can add Drive/Dropbox links for demos',
+      'Share timelines with your producer or engineer',
+      'Keep a full history of how each track evolved',
     ]
   },
   {
     id: 'funding',
     icon: '🎁',
-    title: 'Funding - Procurando Apoio Financeiro',
-    category: 'Oportunidades',
-    description: 'Encontre editais, bolsas, prêmios e crowdfunding para financiar seus projetos musicais.',
+    title: 'Funding - Finding Financial Support',
+    category: 'Opportunities',
+    description: 'Find grants, fellowships, prizes, and crowdfunding opportunities to support your music projects.',
     steps: [
-      'Clique em "Funding" na barra lateral',
-      'Pesquise fundos por palavra-chave (ex: "música", "artes")',
-      'Veja deadline e requisitos de cada oportunidade',
-      'Salve as que te interessam',
-      'Adicione lembretes no Calendar 6+ semanas antes do deadline',
+      'Click "Funding" in the sidebar',
+      'Search by keyword (for example, "music" or "arts")',
+      'Review deadlines and requirements for each opportunity',
+      'Save ones that fit your goals',
+      'Add reminders in the calendar 6+ weeks before each deadline',
     ],
     tips: [
-      'sempre pesquise prazos com bastante antecedência',
-      'Salve oportunidades que combinam mesmo que não lance agora',
-      'A IA pode criar uma documentação base para inscrição',
-      'Você pode adicionar fundos manualmente também',
+      'Always look ahead and plan for deadlines early',
+      'Save opportunities even if you are not launching right away',
+      'AI can help create a strong funding application draft',
+      'You can add funds manually as well',
     ]
   },
   {
     id: 'epk',
     icon: '🎭',
-    title: 'EPK - Seu Press Kit Digital',
-    category: 'Profissional',
-    description: 'Crie um Press Kit profissional que compartilhar com imprensa, venues, festivals e labels. Tudo centralizado.',
+    title: 'EPK - Your Digital Press Kit',
+    category: 'Professional',
+    description: 'Create a professional press kit you can share with media, venues, festivals, and labels.',
     steps: [
-      'Clique em "EPK" na barra lateral',
-      'Adicione foto de capa principal',
-      'Escreva sua bio (a IA pode ajudar)',
-      'Anexe seu último release',
-      'Destaque seus próximos shows',
-      'Compartilhe o link com contatos',
+      'Click "EPK" in the sidebar',
+      'Add your main cover photo',
+      'Write your bio (AI can help)',
+      'Attach your latest release',
+      'Highlight your upcoming shows',
+      'Share the link with contacts',
     ],
     tips: [
-      'EPK faz você parecer profissional',
-      'Atualize quando tiver novidades importantes',
-      'Todos links são rastreáveis (você vê quem clicou)',
-      'Funciona bem em mobile para venues',
+      'EPK makes you look professional',
+      'Update it whenever there is important news',
+      'All links are traceable (you can see who clicked)',
+      'It works well on mobile for venue outreach',
     ]
   },
   {
     id: 'merch',
     icon: '👕',
-    title: 'Merchandise - Vendendo Seus Produtos',
-    category: 'Negócio',
-    description: 'Crie catálogo de produtos (camisetas, vinil, CDs, etc). Registre vendas e lucro em cada show.',
+    title: 'Merchandise - Selling Your Products',
+    category: 'Business',
+    description: 'Create a product catalog (shirts, vinyl, CDs, posters, etc.) and track sales and profit per show.',
     steps: [
-      'Clique em "Merchandise" na barra lateral',
-      'Clique "Add Item" para novo produto',
-      'Defina tipo (Shirt, CD, Vinyl, Poster)',
-      'Adicione variações (tamanhos, cores)',
-      'Aloque quantidade por variante',
-      'No show: Clique "+ Sale" para registrar venda',
+      'Click "Merchandise" in the sidebar',
+      'Click "Add Item" for a new product',
+      'Set the type (Shirt, CD, Vinyl, Poster)',
+      'Add variations (sizes, colors)',
+      'Assign stock per variant',
+      'At the show, click "+ Sale" to log a sale',
     ],
     tips: [
-      'Merch é uma fonte de receita importante',
-      'Rastreie estoque para não vender sem ter',
-      'Você pode dar desconto em certas quantidades',
-      'Gera relatórios de quais produtos vendem mais',
+      'Merch is an important revenue stream',
+      'Track stock to avoid selling what you do not have',
+      'You can offer discounts on certain quantities',
+      'It generates reports showing which products sell best',
     ]
   },
   {
     id: 'settings',
     icon: '⚙️',
-    title: 'Settings - Configuração da Sua Conta',
-    category: 'Sistema',
-    description: 'Configure informações da banda, membros, integração com APIs e exportação de dados.',
+    title: 'Settings - Your Account Configuration',
+    category: 'System',
+    description: 'Configure band info, members, API integrations, and data export.',
     steps: [
-      'Clique em "Settings" na barra lateral',
-      'Atualize nome da banda e gênero',
-      'Adicione membros da equipe (email + role)',
-      'Configure como dividir os lucros',
-      'Veja uso de APIs (limitado no free)',
-      'Exporte seu data quando quiser',
+      'Click "Settings" in the sidebar',
+      'Update band name and genre',
+      'Add team members (email + role)',
+      'Set pricing and profit splits',
+      'Review API usage limits',
+      'Export your data whenever needed',
     ],
     tips: [
-      'Você pode resetar todos dados (atenção!)',
-      'membros recebem email convite',
-      'API monitoring mostra quanto as IAs foram usadas',
-      'Dados exportam em JSON - fácil de importar depois',
+      'You can reset all data (be careful!)',
+      'Members receive an invite email',
+      'API monitoring shows how much AI usage has been consumed',
+      'Exported data is in JSON and easy to re-import later',
     ]
   },
   {
     id: 'radio',
     icon: '📻',
-    title: 'Radio Outreach - Alcançar DJs',
-    category: 'Contatos',
-    description: 'Encontre estações de rádio, programas e DJs que toquem seu estilo. Envie musica para aditoria.',
+    title: 'Radio Outreach - Reaching DJs',
+    category: 'Contacts',
+    description: 'Find radio stations, programs, and DJs playing your style. Send music for review.',
     steps: [
-      'Clique em "Radio" na barra lateral',
-      'Busque por gênero (indie rock, eletrônico, etc)',
-      'Veja estação, país e descrição do programa',
-      'Clique "Save" para adicionar à lista',
-      'Use Campaigns para enviar sua música',
+      'Click "Radio" in the sidebar',
+      'Search by genre (indie rock, electronic, etc.)',
+      'Review station, country, and program description',
+      'Click "Save" to add it to the list',
+      'Use Campaigns to send your music',
     ],
     tips: [
-      'Rádio comunitária é mais fácil pra começar',
-      'Pesquise ao vivo antes de enviar',
-      'Alguns DJs têm redes também - mande para todos',
-      'Rádio gera muito buzz quando funciona',
+      'Community radio is easier to start with',
+      'Research before sending',
+      'Some DJs also have socials — send to everyone',
+      'Radio can create strong buzz when it works',
     ]
   },
   {
     id: 'collaborators',
     icon: '👥',
-    title: 'Collaborators - Sua Equipe',
-    category: 'Organização',
-    description: 'Cadastre produtores, engenheiros, fotógrafos e outros colaboradores com contato e anotações.',
+    title: 'Collaborators - Your Team',
+    category: 'Organization',
+    description: 'Register producers, engineers, photographers, and other collaborators with contact and notes.',
     steps: [
-      'Clique em "Collaborators" na barra lateral',
-      'Clique "Add Collaborator"',
-      'Adicione nome, role (Producer, Engineer, etc)',
-      'Email e anotações (portfólio, valor hora, etc)',
-      'Filtre por tipo de profissional',
+      'Click "Collaborators" in the sidebar',
+      'Click "Add Collaborator"',
+      'Add name, role (Producer, Engineer, etc.)',
+      'Store email and notes (portfolio, hourly rate, etc.)',
+      'Filter by professional type',
     ],
     tips: [
-      'Ali você guarda números dos técnicos/estúdios preferidos',
-      'Adicione link do Insta/Portfolio',
-      'Você pode avaliar e deixar feedback',
-      'Use como referência quando precisar',
+      'This is where you store your preferred tech and studio contacts',
+      'Add portfolio or Instagram links',
+      'You can rate and leave feedback',
+      'Use it as a reference when you need help',
     ]
   },
   {
     id: 'search-cache',
     icon: '💾',
-    title: 'Buscas Salvam Automaticamente',
-    category: 'Dica Rápida',
-    description: 'Quando você faz uma busca (Press, Radio, Labels), os resultados são salvos automaticamente.',
+    title: 'Searches Save Automatically',
+    category: 'Quick Tip',
+    description: 'When you do a search in Press, Radio, or Labels, results are saved automatically.',
     steps: [
-      'Faça uma busca qualquer (ex: buscar jornalistas)',
-      'Saia da página e volte depois',
-      'Seus últimos 20 resultados estão lá!',
-      'Isso funciona também se você fechar o navegador',
+      'Run any search',
+      'Leave the page and come back later',
+      'Your last 20 results are there',
+      'This also works if you close the browser',
     ],
     tips: [
-      'Nunca mais perd seus resultados de busca',
-      'Funciona inclusive no seu telemóvel',
-      'Dados salvam localmente no seu navegador',
+      'Never lose your search results again',
+      'It works on mobile too',
+      'Data is stored locally in your browser',
     ]
   },
 ];
@@ -387,7 +386,6 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black/70 flex z-50">
-      {/* Topic View */}
       {selectedTopic && (
         <div className="w-full max-w-2xl bg-gray-800 overflow-y-auto">
           <div className="p-6 border-b border-gray-700">
@@ -396,7 +394,7 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
               className="flex items-center gap-2 text-purple-400 hover:text-purple-300 mb-4"
             >
               <ChevronLeftIcon className="w-5 h-5" />
-              Voltar
+              Back
             </button>
             <h2 className="text-3xl font-bold text-white">
               {selectedTopic.icon} {selectedTopic.title}
@@ -409,7 +407,7 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
             </div>
 
             <div>
-              <h3 className="text-lg font-bold text-white mb-3">Como Fazer:</h3>
+              <h3 className="text-lg font-bold text-white mb-3">How to do it:</h3>
               <ol className="space-y-2">
                 {selectedTopic.steps.map((step, i) => (
                   <li key={i} className="flex gap-3 text-gray-300">
@@ -422,7 +420,7 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
 
             {selectedTopic.tips.length > 0 && (
               <div>
-                <h3 className="text-lg font-bold text-white mb-3">💡 Dicas Úteis:</h3>
+                <h3 className="text-lg font-bold text-white mb-3">💡 Useful Tips:</h3>
                 <ul className="space-y-2">
                   {selectedTopic.tips.map((tip, i) => (
                     <li key={i} className="flex gap-3 text-gray-300">
@@ -437,15 +435,13 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
         </div>
       )}
 
-      {/* List View */}
       {!selectedTopic && (
         <div className="w-full bg-gray-800 flex flex-col">
-          {/* Header */}
           <div className="p-6 border-b border-gray-700 flex-shrink-0">
             <div className="flex items-center justify-between mb-4">
               <h1 className="text-3xl font-bold text-white flex items-center gap-2">
                 <BookOpenIcon className="w-8 h-8 text-purple-400" />
-                Centro de Ajuda
+                Help Center
               </h1>
               <button
                 onClick={onClose}
@@ -455,12 +451,11 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
               </button>
             </div>
 
-            {/* Search */}
             <div className="relative">
               <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
               <input
                 type="text"
-                placeholder="Procurar por tópico..."
+                placeholder="Search for a topic..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="w-full bg-gray-700 border border-gray-600 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -468,7 +463,6 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
             </div>
           </div>
 
-          {/* Categories Filter */}
           <div className="px-6 pt-4 flex-shrink-0 overflow-x-auto">
             <div className="flex gap-2 pb-4">
               <button
@@ -479,7 +473,7 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
                     : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                 }`}
               >
-                Tudo
+                All
               </button>
               {categories.map(cat => (
                 <button
@@ -497,7 +491,6 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
             </div>
           </div>
 
-          {/* Topics List */}
           <div className="flex-1 overflow-y-auto px-6 pb-6">
             <div className="grid gap-4 mt-4">
               {filteredTopics.map(topic => (
@@ -517,10 +510,10 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
                   </div>
                 </button>
               ))}
-              
+
               {filteredTopics.length === 0 && (
                 <div className="text-center py-12">
-                  <p className="text-gray-400">Nenhum tópico encontrado. Tente outra busca.</p>
+                  <p className="text-gray-400">No topics found. Try another search.</p>
                 </div>
               )}
             </div>

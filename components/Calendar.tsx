@@ -66,9 +66,9 @@ const AddEventModal: React.FC<{
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
             <div className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-lg">
-                <h2 className="text-2xl font-bold mb-4">Adicionar Novo Evento</h2>
+                <h2 className="text-2xl font-bold mb-4">Add New Event</h2>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <input type="text" placeholder="Título do Evento" value={title} onChange={e => setTitle(e.target.value)} className="w-full bg-gray-700 p-2 rounded-lg" required />
+                    <input type="text" placeholder="Event title" value={title} onChange={e => setTitle(e.target.value)} className="w-full bg-gray-700 p-2 rounded-lg" required />
                     <div className="grid grid-cols-2 gap-4">
                         <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-gray-700 p-2 rounded-lg" required />
                         <select value={type} onChange={e => setType(e.target.value as EventType)} className="w-full bg-gray-700 p-2 rounded-lg">
@@ -77,8 +77,8 @@ const AddEventModal: React.FC<{
                     </div>
                     <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Notas..." className="w-full bg-gray-700 p-2 rounded-lg" />
                     <div className="flex justify-end gap-4 pt-4">
-                        <button type="button" onClick={onClose} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Cancelar</button>
-                        <button type="submit" className="bg-spotify-green hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg">Salvar Evento</button>
+                        <button type="button" onClick={onClose} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Cancel</button>
+                        <button type="submit" className="bg-spotify-green hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg">Save Event</button>
                     </div>
                 </form>
             </div>
@@ -100,8 +100,7 @@ const EventModal: React.FC<{
   };
 
   const handleDelete = () => {
-    if (window.confirm("Tem a certeza que quer deletar este evento?")) {
-      setEvents(prev => prev.filter(e => e.id !== event.id));
+    if (window.confirm("Are you sure you want to delete this event?")) {
       onClose();
     }
   }
@@ -121,10 +120,10 @@ const EventModal: React.FC<{
                 <textarea value={editedEvent.notes} onChange={e => setEditedEvent({...editedEvent, notes: e.target.value})} rows={3} placeholder="Notas..." className="w-full bg-gray-700 p-2 rounded-lg" />
             </div>
             <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-700">
-                 <button onClick={handleDelete} className="bg-red-800 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Deletar</button>
+                 <button onClick={handleDelete} className="bg-red-800 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Delete</button>
                 <div className="flex gap-4">
-                    <button onClick={onClose} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Cancelar</button>
-                    <button onClick={handleSave} className="bg-spotify-green hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg">Salvar Alterações</button>
+                    <button onClick={onClose} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Cancel</button>
+                    <button onClick={handleSave} className="bg-spotify-green hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg">Save Changes</button>
                 </div>
             </div>
         </div>
@@ -145,10 +144,10 @@ const ReadOnlyModal: React.FC<{
                 <h2 className="text-2xl font-bold mb-4">{unifiedEvent.type}</h2>
                 <div className="space-y-3">
                     <p className="text-lg text-white font-semibold">{unifiedEvent.title}</p>
-                    <p className="text-gray-400 flex items-center"><ClockIcon className="w-4 h-4 mr-2" />{unifiedEvent.date.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                    {unifiedEvent.participants.length > 0 && <p className="text-gray-400">Participantes: {unifiedEvent.participants.join(', ')}</p>}
+                    <p className="text-gray-400 flex items-center"><ClockIcon className="w-4 h-4 mr-2" />{unifiedEvent.date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                    {unifiedEvent.participants.length > 0 && <p className="text-gray-400">Attendees: {unifiedEvent.participants.join(', ')}</p>}
                     {unifiedEvent.reminders && unifiedEvent.reminders.length > 0 && (
-                        <p className="text-yellow-400 flex items-center"><AlertIcon className="w-4 h-4 mr-2" />Lembretes: {unifiedEvent.reminders.map(r => `${r} dias antes`).join(', ')}</p>
+                        <p className="text-yellow-400 flex items-center"><AlertIcon className="w-4 h-4 mr-2" />Reminders: {unifiedEvent.reminders.map(r => `${r} days before`).join(', ')}</p>
                     )}
                     {unifiedEvent.materials && unifiedEvent.materials.length > 0 && (
                         <div className="mt-2">
@@ -158,13 +157,13 @@ const ReadOnlyModal: React.FC<{
                             </ul>
                         </div>
                     )}
-                    <p className="text-sm bg-gray-700/50 p-2 rounded-md mt-2">Este é um evento automatizado da seção {unifiedEvent.sourceType}.</p>
+                    <p className="text-sm bg-gray-700/50 p-2 rounded-md mt-2">This is an automated event from the {unifiedEvent.sourceType} section.</p>
                 </div>
                 <div className="flex justify-between mt-6">
                     {isDeletable ? (
-                        <button onClick={onDelete} className="bg-red-800 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Deletar Origem</button>
+                        <button onClick={onDelete} className="bg-red-800 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Delete Source</button>
                     ) : <div></div>}
-                    <button onClick={onClose} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Fechar</button>
+                    <button onClick={onClose} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Close</button>
                 </div>
             </div>
         </div>
@@ -334,7 +333,7 @@ export const Calendar: React.FC<CalendarProps> = ({
     };
 
     const handleDeleteUnifiedEvent = (unifiedEvent: UnifiedEvent) => {
-        if (!window.confirm(`Tem a certeza que quer deletar este ${unifiedEvent.sourceType}? Isso o removerá da base de dados.`)) return;
+        if (!window.confirm(`Are you sure you want to delete this ${unifiedEvent.sourceType}? This will remove it from the database.`)) return;
 
         switch (unifiedEvent.sourceType) {
             case 'event':
@@ -350,7 +349,7 @@ export const Calendar: React.FC<CalendarProps> = ({
                 setFundingApplications(prev => prev.filter(f => f.id !== unifiedEvent.originalId));
                 break;
             default:
-                alert("Este item não pode ser deletado da visualização de calendário. Por favor, vá para a página de origem.");
+                alert("This item cannot be deleted from the calendar view. Please go to the source page.");
                 return;
         }
         setSelectedEventId(null);
@@ -475,7 +474,7 @@ export const Calendar: React.FC<CalendarProps> = ({
                         
                         return (
                             <div key={i} className={`bg-gray-800 rounded-md p-2 flex flex-col ${isToday ? 'border-2 border-purple-600' : 'border border-gray-700'}`}>
-                                <div className="font-bold text-sm mb-2">{day.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit' })}</div>
+                                <div className="font-bold text-sm mb-2">{day.toLocaleDateString('en-US', { weekday: 'short', day: '2-digit' })}</div>
                                 <div className="flex-grow overflow-y-auto space-y-1">
                                     {dayEvents.map(event => {
                                         const style = getEventTypeStyle(event.type);
@@ -514,7 +513,7 @@ export const Calendar: React.FC<CalendarProps> = ({
                 <div className="grid grid-cols-3 gap-4 p-4">
                     {months.map(({ monthDate, monthEvents, month }) => (
                         <div key={month} className="bg-gray-800 rounded-lg p-3 border border-gray-700">
-                            <h3 className="font-bold text-center mb-2">{monthDate.toLocaleDateString('pt-BR', { month: 'long' })}</h3>
+                            <h3 className="font-bold text-center mb-2">{monthDate.toLocaleDateString('en-US', { month: 'long' })}</h3>
                             <div className="space-y-1 max-h-32 overflow-y-auto">
                                 {monthEvents.slice(0, 5).map(event => (
                                     <button
@@ -541,7 +540,7 @@ export const Calendar: React.FC<CalendarProps> = ({
         <div className="flex flex-col h-full">
             <div className="flex justify-between items-center mb-6 flex-shrink-0">
                 <div className="flex items-center gap-4">
-                     <h1 className="text-4xl font-bold">{currentDate.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}</h1>
+                     <h1 className="text-4xl font-bold">{currentDate.toLocaleString('en-US', { month: 'long', year: 'numeric' })}</h1>
                      <div className="flex gap-1">
                         <button onClick={() => changeMonth(-1)} title="Mês anterior" className="p-2 rounded-full hover:bg-gray-700"><ChevronLeftIcon className="w-6 h-6" /></button>
                         <button onClick={() => changeMonth(1)} title="Próximo mês" className="p-2 rounded-full hover:bg-gray-700"><ChevronRightIcon className="w-6 h-6" /></button>
@@ -554,11 +553,11 @@ export const Calendar: React.FC<CalendarProps> = ({
                         <button onClick={() => setViewMode('year')} className={`px-3 py-2 rounded-lg font-medium ${viewMode === 'year' ? 'bg-spotify-green text-white' : 'bg-gray-700 text-gray-300'}`}>Ano</button>
                      </div>
                      <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="bg-gray-700 p-2 rounded-lg text-sm">
-                        <option value="all">Todos os Tipos</option>
+                        <option value="all">All Types</option>
                         {Object.values(EventType).map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
                     <select value={projectFilter} onChange={e => setProjectFilter(e.target.value)} className="bg-gray-700 p-2 rounded-lg text-sm">
-                        <option value="all">Todos os Projetos</option>
+                        <option value="all">All Projects</option>
                         {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                     <button onClick={() => setIsAddModalOpen(true)} className="flex items-center bg-spotify-green hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg transition-colors">

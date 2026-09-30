@@ -291,6 +291,21 @@ export interface BandProfile {
   id: string;
   name: string;
   genre: string;
+  city?: string;
+  country?: string;
+  bio?: string;
+  focus?: string;
+  currentStatus?: 'planning' | 'recording' | 'releasing' | 'touring' | 'promoting' | 'paused';
+  releaseStatus?: 'no-release' | 'released' | 'upcoming' | 'in-production';
+  releaseTitle?: string;
+  nextReleaseDate?: string;
+  tourStatus?: 'none' | 'active' | 'upcoming' | 'planning';
+  gigsUpcoming?: string;
+  upcomingShows?: string;
+  showActions?: string[];
+  releaseChecklist?: string[];
+  notes?: string;
+  firstRelease?: string;
 }
 
 export interface WizardChatMessage {

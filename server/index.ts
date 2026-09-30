@@ -4,7 +4,7 @@ import cors from 'cors';
 import cron from 'node-cron';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
-import pool from './db';
+import pool, { isDatabaseConfigured, query, getDatabaseStatus } from './db';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -37,13 +37,42 @@ async function startServer() {
     }
   });
 
+  // Config status endpoint
+  app.get('/api/config', (req, res) => {
+    res.json({
+      database: getDatabaseStatus(),
+      ai: {
+        providers: ['OpenRouter', 'Groq', 'MiniMax', 'Google Gemini'],
+        configured: Boolean(
+          process.env.VITE_OPENROUTER_API_KEY ||
+          process.env.OPENROUTER_API_KEY ||
+          process.env.VITE_GROQ_API_KEY ||
+          process.env.GROQ_API_KEY ||
+          process.env.VITE_MINIMAX_API_KEY ||
+          process.env.MINIMAX_API_KEY ||
+          process.env.VITE_GEMINI_API_KEY ||
+          process.env.GEMINI_API_KEY
+        )
+      }
+    });
+  });
+
   // Health Check Endpoint
   app.get('/api/health', async (req, res) => {
+    if (!isDatabaseConfigured) {
+      return res.status(503).json({
+        status: 'degraded',
+        message: 'Database not configured. Add DATABASE_URL or DB_* vars to enable persistence.',
+        dbConfigured: false
+      });
+    }
+
     try {
-      const result = await pool.query('SELECT NOW()');
+      const result = await query('SELECT NOW()');
       res.json({ 
           status: 'online', 
-          message: 'Connected to Hostinger VPS Database', 
+          message: 'Database connected', 
+          dbConfigured: true,
           dbTime: result.rows[0].now 
       });
     } catch (error: any) {
@@ -51,6 +80,7 @@ async function startServer() {
       res.status(500).json({ 
           status: 'error', 
           message: 'Failed to connect to database', 
+          dbConfigured: true,
           error: error.message 
       });
     }
@@ -74,7 +104,7 @@ async function startServer() {
   // Start Server
   app.listen(port, () => {
     console.log(`Backend server running at http://localhost:${port}`);
-    console.log(`Targeting Database: ${process.env.DB_NAME} at ${process.env.DB_HOST}`);
+    console.log(`Database status: ${isDatabaseConfigured ? 'configured' : 'not configured'}`);
   });
 }
 

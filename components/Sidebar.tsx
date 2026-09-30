@@ -13,8 +13,10 @@ interface SidebarProps {
   activeBandId: string;
   onBandChange: (id: string) => void;
   onNewBandClick: () => void;
+  onEditBandClick: () => void;
   onHelpClick: () => void;
   users: User[];
+  currentUser: User | null;
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
 }
 
@@ -92,7 +94,7 @@ const NavSectionHeader: React.FC<{ title: string }> = ({ title }) => (
     </h3>
 );
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBandId, onBandChange, onNewBandClick, onHelpClick, users, setUsers }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBandId, onBandChange, onNewBandClick, onEditBandClick, onHelpClick, users, currentUser, setUsers }) => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const managementNavItems = [
@@ -148,7 +150,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBand
   
   const settingsItem = { id: 'settings', label: 'Settings', icon: <SettingsIcon className="h-5 w-5" /> };
   
-  const currentUser: User = users[0] || { id: 'nouser', name: 'No User', systemRole: 'Member', primaryRole: '', secondaryRoles: [], avatar: '', email: '' };
+  const activeUser: User = currentUser || users[0] || { id: 'nouser', name: 'No User', systemRole: 'Member', primaryRole: '', secondaryRoles: [], avatar: '', email: '' };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -156,7 +158,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBand
         reader.onload = (event) => {
             const newAvatar = event.target?.result as string;
             setUsers(prevUsers => prevUsers.map(u => 
-                u.id === currentUser.id ? { ...u, avatar: newAvatar } : u
+                u.id === activeUser.id ? { ...u, avatar: newAvatar } : u
             ));
         };
         reader.readAsDataURL(e.target.files[0]);
@@ -184,15 +186,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBand
             </h1>
             <span className="text-[10px] text-brand-accent font-bold uppercase tracking-[0.3em] mt-1">Management HQ</span>
         </div>
-        {currentUser.systemRole === 'Admin' && (
+        <div className="flex items-center gap-1 ml-2">
             <button 
-                onClick={onNewBandClick}
-                className="p-1.5 bg-brand-accent/10 hover:bg-brand-accent/20 rounded-full text-brand-accent transition-colors border border-brand-accent/20 ml-2"
-                title="Create new band"
+                onClick={onEditBandClick}
+                className="p-1.5 bg-brand-bg-card/60 hover:bg-brand-accent/10 rounded-full text-gray-400 hover:text-brand-accent transition-colors border border-brand-border/60"
+                title="Edit band details"
+                aria-label="Edit band details"
             >
-                <PlusIcon className="w-3.5 h-3.5" />
+                <EditIcon className="w-3.5 h-3.5" />
             </button>
-        )}
+            {activeUser.systemRole === 'Admin' && (
+                <button 
+                    onClick={onNewBandClick}
+                    className="p-1.5 bg-brand-accent/10 hover:bg-brand-accent/20 rounded-full text-brand-accent transition-colors border border-brand-accent/20"
+                    title="Create new band"
+                    aria-label="Create new band"
+                >
+                    <PlusIcon className="w-3.5 h-3.5" />
+                </button>
+            )}
+        </div>
       </div>
 
       <BandSwitcher 
@@ -200,7 +213,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBand
         activeBandId={activeBandId} 
         onBandChange={onBandChange} 
         onNewBandClick={onNewBandClick} 
-        isAdmin={currentUser.systemRole === 'Admin'} 
+        isAdmin={activeUser.systemRole === 'Admin'} 
       />
 
       <nav className="flex-grow">
@@ -255,7 +268,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBand
          <div className="border-t border-brand-border my-2"></div>
          <div className="flex items-center p-2">
             <label className="relative group cursor-pointer">
-                <img src={currentUser.avatar} alt={currentUser.name} className="h-10 w-10 rounded-full group-hover:opacity-50 transition-opacity" />
+                <img src={activeUser.avatar || 'https://i.pravatar.cc/150?u=default'} alt={activeUser.name} className="h-10 w-10 rounded-full group-hover:opacity-50 transition-opacity" />
                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
                     <EditIcon className="w-5 h-5 text-white" />
                 </div>
@@ -267,8 +280,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBand
                 />
             </label>
             <div className="ml-3">
-                <p className="font-medium text-sm text-white">{currentUser.name}</p>
-                <p className="text-xs text-gray-400">{currentUser.primaryRole}</p>
+                <p className="font-medium text-sm text-white">{activeUser.name}</p>
+                <p className="text-xs text-gray-400">{activeUser.primaryRole}</p>
             </div>
          </div>
       </div>
