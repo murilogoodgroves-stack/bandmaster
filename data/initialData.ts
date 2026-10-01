@@ -80,7 +80,12 @@ export const initialBandSettings: BandSettings = {
     issuerName: '',
     issuerAddress: '',
     issuerTaxId: '',
-    issuerBankDetails: ''
+    issuerBankDetails: '',
+    mailchimpApiKey: '',
+    mailchimpServerPrefix: '',
+    mailchimpAudienceId: '',
+    mailchimpFromName: '',
+    mailchimpReplyTo: ''
 };
 
 export const initialCashHoldings: CashHolding[] = [];

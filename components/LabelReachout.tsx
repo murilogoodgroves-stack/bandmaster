@@ -3,9 +3,143 @@ import React, { useState, useMemo } from 'react';
 import useLocalStorage from '../hooks/useLocalStorage';
 import type { LabelContact, LabelOpportunity, BandProfile, LastSearchParams, PressContact } from '../types';
 import { ContactTier } from '../types';
-import { PlusIcon, TrashIcon, CopyIcon, SearchIcon, ExternalLinkIcon, BotIcon, SaveIcon, BuildingIcon, EditIcon, InstagramIcon, TwitterIcon, FacebookIcon, BandcampIcon } from './icons';
+import { PlusIcon, TrashIcon, CopyIcon, SearchIcon, ExternalLinkIcon, BotIcon, SaveIcon, BuildingIcon, EditIcon, InstagramIcon, TwitterIcon, FacebookIcon, BandcampIcon, UploadCloudIcon } from './icons';
 import { generateEmail, EmailTone, EmailLength, findLabelContacts } from '../services/aiService';
 import { Tip } from './Tip';
+
+const normalizeLabelKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+const parseCsvRow = (row: string) => {
+    const values: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let index = 0; index < row.length; index += 1) {
+        const character = row[index];
+        if (character === '"') {
+            if (inQuotes && row[index + 1] === '"') {
+                current += '"';
+                index += 1;
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (character === ',' && !inQuotes) {
+            values.push(current.trim());
+            current = '';
+        } else {
+            current += character;
+        }
+    }
+
+    values.push(current.trim());
+    return values;
+};
+
+const parseCsvContacts = (fileText: string): Partial<LabelContact>[] => {
+    const rows = fileText
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        .map(parseCsvRow);
+
+    if (rows.length < 2) return [];
+
+    const headers = rows[0].map((header) => normalizeLabelKey(header));
+    const parsed: Partial<LabelContact>[] = [];
+
+    rows.slice(1).forEach((row) => {
+        const record: Record<string, string> = {};
+        headers.forEach((header, index) => {
+            record[header] = row[index] || '';
+        });
+
+        const labelName = record.labelname || record.label || record.company || record.brand || record['recordlabel'] || '';
+        const name = record.contact || record.name || record.person || record['contactname'] || record['labelmanager'] || '';
+        const email = record.email || record['emailaddress'] || record['contactemail'] || '';
+        const country = record.country || record.location || record.region || '';
+        const city = record.city || record['citystate'] || '';
+        const website = record.website || record.link || record.url || record['submissionurl'] || '';
+        const role = record.role || record.title || record.position || '';
+        const notes = record.notes || record['notesdetails'] || '';
+
+        if (!labelName && !name && !email) return;
+
+        parsed.push({
+            labelName: labelName || 'Imported Label',
+            name: name || 'Label Contact',
+            email: email || '',
+            country: country || undefined,
+            city: city || undefined,
+            submissionUrl: website || undefined,
+            role: role || undefined,
+            notes: notes || undefined,
+            website: website || undefined,
+            source: 'csv',
+        });
+    });
+
+    return parsed;
+};
+
+const extractLabelDataFromText = (rawText: string): Partial<LabelContact> => {
+    const text = String(rawText || '').replace(/\r/g, '');
+    const emails = [...text.matchAll(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)].map((match) => match[0]);
+    const urls = [...text.matchAll(/https?:\/\/[^\s]+/gi)].map((match) => match[0]);
+    const lines = text
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+    const labelLine = lines.find((line) => /label|records|music|studio|agency|imprint|group/i.test(line)) || lines[0] || 'Imported Label';
+    const contactLine = lines.find((line) => /name|contact|person|manager|a&r|director|coordinator|owner|booking|team/i.test(line)) || lines[1] || 'Label Contact';
+    const cityMatch = text.match(/city\s*[:\-]\s*([A-Za-z .'-]+)/i) || text.match(/location\s*[:\-]\s*([A-Za-z .'-]+)/i);
+    const countryMatch = text.match(/country\s*[:\-]\s*([A-Za-z .'-]+)/i) || text.match(/nation\s*[:\-]\s*([A-Za-z .'-]+)/i);
+    const roleMatch = text.match(/(A&R|Manager|Director|Coordinator|Owner|Head|Booking|Marketing|Label Manager|Reception|Team)/i);
+
+    const cleanLabel = labelLine
+        .replace(/^(label|company|record label|music label|label name|name)\s*[:\-]?\s*/i, '')
+        .trim();
+
+    const cleanContact = contactLine
+        .replace(/^(name|contact|person|manager|director|coordinator|owner|booking|team|a&r)\s*[:\-]?\s*/i, '')
+        .trim();
+
+    return {
+        labelName: cleanLabel || 'Imported Label',
+        name: cleanContact || 'Label Contact',
+        email: emails[0] || '',
+        website: urls[0] || '',
+        submissionUrl: urls[0] || '',
+        city: cityMatch ? cityMatch[1].trim() : undefined,
+        country: countryMatch ? countryMatch[1].trim() : undefined,
+        role: roleMatch ? roleMatch[1].trim() : undefined,
+        notes: lines.slice(0, 4).join(' | '),
+        source: 'paste',
+    };
+};
+
+const buildImportedLabelContact = (partial: Partial<LabelContact>, bandId: string, index: number): LabelContact => {
+    const safeEmail = (partial.email || '').trim();
+    return {
+        id: partial.id || `label-import-${Date.now()}-${index}`,
+        name: partial.name || 'Label Contact',
+        labelName: partial.labelName || 'Imported Label',
+        email: safeEmail || `not-listed-${index}@import.local`,
+        country: partial.country || '',
+        city: partial.city || '',
+        genres: partial.genres || '',
+        submissionUrl: partial.submissionUrl || partial.website || '',
+        notes: partial.notes || 'Imported from uploaded list',
+        website: partial.website || partial.submissionUrl || '',
+        role: partial.role || '',
+        phone: partial.phone || '',
+        address: partial.address || '',
+        source: partial.source || 'manual',
+        lastVerifiedAt: new Date().toISOString(),
+        socials: partial.socials || {},
+        bandId,
+    };
+};
 
 // Reusable AI Email Modal for pitching
 const AiEmailModal: React.FC<{ contact: PressContact, onClose: () => void, bandProfile: BandProfile }> = ({ contact, onClose, bandProfile }) => {
@@ -110,7 +244,7 @@ const LabelFinder: React.FC<{ onAddLabel: (label: LabelOpportunity, query: strin
 
         try {
             const newLabels = await findLabelContacts(genre, country, size, labelName, savedLabels, similarToLabel);
-            setResults(prev => [...prev, ...newLabels.filter(n => !prev.some(p => p.url === n.url))]); // basic duplicate check
+            setResults(prev => [...prev, ...newLabels.filter(n => !prev.some(p => p.url === n.url))]);
         } finally {
             setIsLoadMoreLoading(false);
             window.dispatchEvent(new CustomEvent('end-task', { detail: { id: taskId } }));
@@ -191,6 +325,112 @@ interface LabelReachoutProps {
     getSearchResults?: (source: string, searchTerm?: string) => any;
 }
 
+const BulkLabelImportModal: React.FC<{ open: boolean, bandId: string, onClose: () => void, onSave: (contacts: LabelContact[]) => void }> = ({ open, bandId, onClose, onSave }) => {
+    const [textValue, setTextValue] = useState('');
+    const [preview, setPreview] = useState<LabelContact[]>([]);
+    const [error, setError] = useState<string | null>(null);
+
+    const parseAndPreview = (rawText: string) => {
+        const trimmed = rawText.trim();
+        if (!trimmed) {
+            setPreview([]);
+            setError('Paste text or import a file before saving.');
+            return;
+        }
+
+        const records = trimmed.includes(',') && /email/i.test(trimmed)
+            ? parseCsvContacts(trimmed)
+            : [extractLabelDataFromText(trimmed)];
+
+        const normalized = records
+            .filter((record) => record.email || record.labelName || record.name)
+            .map((record, index) => buildImportedLabelContact(record, bandId, index));
+
+        setPreview(normalized);
+        setError(normalized.length ? null : 'The data could not be parsed into label records.');
+    };
+
+    const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const fileText = await file.text();
+        const importData = file.name.toLowerCase().endsWith('.csv') ? parseCsvContacts(fileText) : [extractLabelDataFromText(fileText)];
+        const nextPreview = importData
+            .filter((record) => record.email || record.labelName || record.name)
+            .map((record, index) => buildImportedLabelContact(record, bandId, index));
+
+        setPreview(nextPreview);
+        setTextValue(fileText);
+        setError(nextPreview.length ? null : 'The file was uploaded but no usable label records were detected.');
+        event.target.value = '';
+    };
+
+    if (!open) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
+            <div className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-bold">Import label contacts</h2>
+                    <button type="button" onClick={onClose} className="bg-gray-600 hover:bg-gray-700 px-3 py-2 rounded">Close</button>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-4 mb-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Paste a list or CSV text</label>
+                        <textarea value={textValue} onChange={(event) => { setTextValue(event.target.value); parseAndPreview(event.target.value); }} className="w-full h-52 bg-gray-700 p-3 rounded-lg" placeholder="Example:&#10;Sable Records&#10;Contact: Maya Chen&#10;A&R Manager&#10;maya@sablerecords.com&#10;City: London&#10;Country: UK" />
+                    </div>
+
+                    <div className="flex flex-col justify-between bg-gray-900 rounded-xl p-4">
+                        <div>
+                            <p className="text-sm text-gray-400 mb-3">Upload a .csv or .txt file to auto-map fields.</p>
+                            <input type="file" accept=".csv,.txt,text/csv,text/plain" onChange={handleFileImport} className="block w-full text-sm text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-500" />
+                        </div>
+                        <button onClick={() => parseAndPreview(textValue)} className="mt-4 flex items-center justify-center bg-spotify-green hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg">
+                            <SearchIcon className="w-4 h-4 mr-2" />Parse Data
+                        </button>
+                    </div>
+                </div>
+
+                {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
+
+                {preview.length > 0 && (
+                    <div className="mb-4 bg-gray-900 rounded-lg overflow-hidden">
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-gray-700/80">
+                                <tr>
+                                    <th className="p-2">Label</th>
+                                    <th className="p-2">Contact</th>
+                                    <th className="p-2">Email</th>
+                                    <th className="p-2">Country</th>
+                                    <th className="p-2">Website</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {preview.map((contact) => (
+                                    <tr key={contact.id} className="border-t border-gray-700">
+                                        <td className="p-2">{contact.labelName}</td>
+                                        <td className="p-2">{contact.name}</td>
+                                        <td className="p-2">{contact.email}</td>
+                                        <td className="p-2">{contact.country || '—'}</td>
+                                        <td className="p-2 break-all">{contact.website || contact.submissionUrl || '—'}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                <div className="flex justify-end gap-3">
+                    <button type="button" onClick={onClose} className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Cancel</button>
+                    <button type="button" onClick={() => { onSave(preview); onClose(); }} disabled={!preview.length} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded disabled:bg-gray-600 disabled:cursor-not-allowed">Save Imported Contacts</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export const LabelReachout: React.FC<LabelReachoutProps> = ({ bands, labelContacts: allSavedLabels, setLabelContacts: setSavedLabels, activeBandId, saveSearchResults, getSearchResults }) => {
   const savedLabels = useMemo(() => allSavedLabels.filter(l => l.bandId === activeBandId), [allSavedLabels, activeBandId]);
   const bandProfile = useMemo(() => bands.find(b => b.id === activeBandId) || bands[0], [bands, activeBandId]);
@@ -199,6 +439,7 @@ export const LabelReachout: React.FC<LabelReachoutProps> = ({ bands, labelContac
   const [contactForEmail, setContactForEmail] = useState<PressContact | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
   const [showTip, setShowTip] = useState(true);
+  const [showBulkImport, setShowBulkImport] = useState(false);
 
   const showNotification = (message: string) => {
     setNotification(message);
@@ -228,18 +469,43 @@ export const LabelReachout: React.FC<LabelReachoutProps> = ({ bands, labelContac
           country: foundLabel.country,
           city: foundLabel.city,
           submissionUrl: foundLabel.url,
+          website: foundLabel.website || foundLabel.url,
           socials: foundLabel.socials,
           notes: `Found via AI research for: "${query}"`,
+          source: 'search',
+          lastVerifiedAt: new Date().toISOString(),
           bandId: activeBandId,
       };
       setSavedLabels(prev => [label, ...prev]);
       showNotification(`${label.labelName} saved to your list!`);
   };
+
+  const handleBulkImport = (contacts: LabelContact[]) => {
+    const deduped = contacts.filter((contact) => contact.email && contact.email.includes('@'));
+    if (!deduped.length) {
+      showNotification('No valid label contacts were ready to save.');
+      return;
+    }
+
+    setSavedLabels((prev) => {
+      const next = [...prev];
+      deduped.forEach((contact) => {
+        const index = next.findIndex((existing) => existing.email.toLowerCase() === contact.email.toLowerCase() || (existing.labelName === contact.labelName && existing.name === contact.name));
+        if (index >= 0) {
+          next[index] = { ...next[index], ...contact, bandId: activeBandId };
+        } else {
+          next.unshift({ ...contact, bandId: activeBandId });
+        }
+      });
+      return next;
+    });
+
+    showNotification(`${deduped.length} label contacts saved to your database.`);
+  };
   
   const deleteLabel = (id: string) => setSavedLabels(prev => prev.filter(l => l.id !== id));
   
   const handlePitch = (label: LabelContact) => {
-    // Convert to generic contact format for the email modal
     const contact: PressContact = {
         id: label.id,
         name: label.name,
@@ -255,9 +521,14 @@ export const LabelReachout: React.FC<LabelReachoutProps> = ({ bands, labelContac
     <div>
         <div className="flex justify-between items-center mb-8">
             <h1 className="text-4xl font-bold flex items-center gap-3"><BuildingIcon className="w-8 h-8"/> Label Reachout</h1>
-            <button onClick={() => setEditingLabel({} as LabelContact)} className="flex items-center bg-spotify-green hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg">
-                <PlusIcon className="h-5 w-5 mr-2"/>Add Label Manually
-            </button>
+            <div className="flex items-center gap-3">
+                <button onClick={() => setShowBulkImport(true)} className="flex items-center bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg">
+                    <UploadCloudIcon className="h-5 w-5 mr-2"/>Upload CSV/TXT
+                </button>
+                <button onClick={() => setEditingLabel({} as LabelContact)} className="flex items-center bg-spotify-green hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg">
+                    <PlusIcon className="h-5 w-5 mr-2"/>Add Label Manually
+                </button>
+            </div>
         </div>
         
         {notification && (
@@ -267,7 +538,7 @@ export const LabelReachout: React.FC<LabelReachoutProps> = ({ bands, labelContac
         )}
 
         {showTip && (
-          <Tip onDismiss={() => setShowTip(false)}>Use the AI-powered finder to discover record labels that fit your genre and size.</Tip>
+          <Tip onDismiss={() => setShowTip(false)}>Use the AI-powered finder to discover record labels that fit your genre and size. You can also upload a CSV or paste a list to populate the database in one step.</Tip>
         )}
 
         <LabelFinder onAddLabel={handleAddFoundLabel} savedLabels={savedLabels} activeBandId={activeBandId} saveSearchResults={saveSearchResults} getSearchResults={getSearchResults} />
@@ -281,6 +552,7 @@ export const LabelReachout: React.FC<LabelReachoutProps> = ({ bands, labelContac
                             <th className="p-3 text-sm font-semibold text-gray-300">Label</th>
                             <th className="p-3 text-sm font-semibold text-gray-300">Contact</th>
                             <th className="p-3 text-sm font-semibold text-gray-300">Email</th>
+                            <th className="p-3 text-sm font-semibold text-gray-300">Location</th>
                             <th className="p-3 text-right text-sm font-semibold text-gray-300">Actions</th>
                         </tr>
                     </thead>
@@ -290,8 +562,9 @@ export const LabelReachout: React.FC<LabelReachoutProps> = ({ bands, labelContac
                                 <td className="p-3 font-semibold">{label.labelName}</td>
                                 <td className="p-3 text-gray-300">{label.name}</td>
                                 <td className="p-3 text-gray-300">{label.email}</td>
+                                <td className="p-3 text-gray-300">{label.city || label.country ? `${label.city || ''}${label.city && label.country ? ', ' : ''}${label.country || ''}` : '—'}</td>
                                 <td className="p-3 text-right flex gap-2 justify-end">
-                                    <a href={label.submissionUrl || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center bg-gray-600 hover:bg-gray-500 text-white font-bold py-1 px-3 rounded-md text-sm"><ExternalLinkIcon className="w-4 h-4 mr-1"/>Website</a>
+                                    <a href={label.submissionUrl || label.website || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center bg-gray-600 hover:bg-gray-500 text-white font-bold py-1 px-3 rounded-md text-sm"><ExternalLinkIcon className="w-4 h-4 mr-1"/>Website</a>
                                     <button onClick={() => handlePitch(label)} className="flex items-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded-md text-sm"><BotIcon className="w-4 h-4 mr-1"/>AI Pitch</button>
                                     <button onClick={() => setEditingLabel(label)} className="p-1 rounded-full hover:bg-gray-600"><EditIcon className="w-5 h-5 text-gray-400"/></button>
                                     <button onClick={() => deleteLabel(label.id)} className="p-1 rounded-full hover:bg-gray-600"><TrashIcon className="w-5 h-5 text-red-500"/></button>
@@ -306,6 +579,7 @@ export const LabelReachout: React.FC<LabelReachoutProps> = ({ bands, labelContac
 
         {contactForEmail && <AiEmailModal contact={contactForEmail} onClose={() => setContactForEmail(null)} bandProfile={bandProfile} />}
         {editingLabel && <LabelContactModal label={editingLabel} onClose={() => setEditingLabel(null)} onSave={handleSaveLabel} activeBandId={activeBandId} />}
+        <BulkLabelImportModal open={showBulkImport} bandId={activeBandId} onClose={() => setShowBulkImport(false)} onSave={handleBulkImport} />
     </div>
   );
 };
@@ -316,7 +590,7 @@ const LabelContactModal: React.FC<{label: LabelContact, onClose: () => void, onS
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave({ ...data, id: data.id || Date.now().toString(), bandId: activeBandId, name: data.name || 'A&R Team' });
+        onSave({ ...data, id: data.id || Date.now().toString(), bandId: activeBandId, name: data.name || 'A&R Team', lastVerifiedAt: data.lastVerifiedAt || new Date().toISOString(), source: data.source || 'manual' });
     };
 
     return (
@@ -328,8 +602,12 @@ const LabelContactModal: React.FC<{label: LabelContact, onClose: () => void, onS
                         <input type="text" placeholder="Label Name" value={data.labelName || ''} onChange={e => setData({...data, labelName: e.target.value})} className="bg-gray-700 p-2 rounded" required />
                         <input type="email" placeholder="Contact Email" value={data.email || ''} onChange={e => setData({...data, email: e.target.value})} className="bg-gray-700 p-2 rounded" required />
                         <input type="text" placeholder="Contact Person" value={data.name || ''} onChange={e => setData({...data, name: e.target.value})} className="bg-gray-700 p-2 rounded" />
+                        <input type="text" placeholder="Role" value={data.role || ''} onChange={e => setData({...data, role: e.target.value})} className="bg-gray-700 p-2 rounded" />
                         <input type="text" placeholder="Country" value={data.country || ''} onChange={e => setData({...data, country: e.target.value})} className="bg-gray-700 p-2 rounded" />
+                        <input type="text" placeholder="City" value={data.city || ''} onChange={e => setData({...data, city: e.target.value})} className="bg-gray-700 p-2 rounded" />
+                        <input type="url" placeholder="Website" value={data.website || data.submissionUrl || ''} onChange={e => setData({...data, website: e.target.value, submissionUrl: e.target.value})} className="bg-gray-700 p-2 rounded col-span-2" />
                     </div>
+                    <textarea value={data.notes || ''} onChange={e => setData({...data, notes: e.target.value})} placeholder="Notes / tags / relationship info" className="w-full bg-gray-700 p-2 rounded" rows={3}></textarea>
                     <div className="flex justify-end gap-4 pt-4">
                         <button type="button" onClick={onClose} className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Cancel</button>
                         <button type="submit" className="bg-spotify-green hover:bg-green-500 px-4 py-2 rounded">Save</button>

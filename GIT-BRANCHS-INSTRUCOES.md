@@ -1,53 +1,53 @@
-# Git: branches e como usar no projeto
+# Git: branches and how to use them in the project
 
-Este arquivo explica de forma simples o que são branches, por que elas são úteis e como usar no projeto local.
+This file explains simply what branches are, why they are useful, and how to use them in the local project.
 
-## 1) O que é uma branch?
+## 1) What is a branch?
 
-Uma branch é uma ramificação do projeto. Em vez de trabalhar diretamente na versão principal, você cria uma cópia do código e trabalha ali.
+A branch is a project fork. Instead of working directly on the main version, you create a copy of the code and work there.
 
-Pense assim:
+Think of it like this:
 
-- main = versão principal e estável
-- feature-x = uma versão para uma funcionalidade nova
-- fix-x = uma versão para corrigir algo
+- main = the stable main version
+- feature-x = a version for a new feature
+- fix-x = a version for fixing something
 
-Você pode criar quantas branches quiser.
+You can create as many branches as you want.
 
-## 2) Por que usar branches?
+## 2) Why use branches?
 
-Branches ajudam a:
+Branches help you:
 
-- desenvolver sem quebrar a versão principal
-- testar novas ideias isoladamente
-- organizar tarefas por funcionalidade
-- revisar mudanças antes de publicar
-- voltar atrás facilmente se algo der errado
+- develop without breaking the main version
+- test new ideas in isolation
+- organize tasks by feature
+- review changes before publishing
+- roll back easily if something goes wrong
 
-## 3) Branch principal
+## 3) Main branch
 
-Normalmente o nome da branch principal é:
+Usually the main branch name is:
 
 - main
 - master
 
-No projeto, o ideal é manter a branch principal como versão estável do sistema.
+In this project, the goal is to keep the main branch as the stable version of the system.
 
-## 4) Como criar uma branch
+## 4) How to create a branch
 
-No terminal, dentro da pasta do projeto, rode:
+In the terminal, inside the project folder, run:
 
 ```bash
 git checkout -b feature-bandmate-ai
 ```
 
-Ou a forma mais moderna:
+Or the more modern form:
 
 ```bash
 git switch -c feature-bandmate-ai
 ```
 
-Exemplos de nomes válidos:
+Examples of valid names:
 
 ```bash
 git checkout -b feature-dashboard
@@ -57,61 +57,61 @@ git checkout -b fix-db-connection
 git checkout -b improve-ui
 ```
 
-## 5) Como ver as branches existentes
+## 5) How to view existing branches
 
 ```bash
 git branch
 ```
 
-## 6) Como trocar de branch
+## 6) How to switch branches
 
 ```bash
 git checkout main
 ```
 
-ou
+or
 
 ```bash
 git switch main
 ```
 
-## 7) Como fazer commit na branch atual
+## 7) How to commit on the current branch
 
-Depois de editar os arquivos:
+After editing files:
 
 ```bash
 git add .
-git commit -m "Descrição da alteração"
+git commit -m "Describe the change"
 ```
 
-## 8) Como mesclar uma branch na principal
+## 8) How to merge a branch into main
 
-Primeiro volte para a branch principal:
+First, return to the main branch:
 
 ```bash
 git checkout main
 ```
 
-Depois junte a outra branch:
+Then merge the other branch:
 
 ```bash
 git merge feature-bandmate-ai
 ```
 
-Se a branch estiver pronta e testada, essa é a forma de “publicar” as mudanças na versão principal.
+If the branch is ready and tested, this is the way to publish changes into the main version.
 
-## 9) Quando usar branch
+## 9) When to use a branch
 
-Use branch quando:
+Use a branch when:
 
-- for criar uma funcionalidade nova
-- for corrigir um problema
-- for testar uma ideia diferente
-- for trabalhar em algo que pode quebrar o projeto
+- creating a new feature
+- fixing a problem
+- testing a different idea
+- working on something that could break the project
 
-## 10) Fluxo recomendado para este projeto
+## 10) Recommended workflow for this project
 
-Um fluxo simples e organizado seria:
+A simple and organized flow would be:
 
 ```bash
 git checkout -b feature-ai-tools
@@ -120,63 +120,63 @@ git checkout -b feature-press-kit
 git checkout -b fix-database-config
 ```
 
-Assim cada tema fica em sua própria branch e a versão principal continua limpa.
+This way each topic stays in its own branch and the main version remains clean.
 
-## 11) Resumo prático
+## 11) Practical summary
 
-Branch é como uma cópia separada do projeto para você trabalhar sem medo de estragar o restante.
+A branch is like a separate copy of the project so you can work without fear of breaking the rest.
 
-Em resumo:
+In summary:
 
-- main = versão estável
-- branch nova = trabalho isolado
-- merge = juntar as mudanças na versão principal
+- main = stable version
+- new branch = isolated work
+- merge = join changes into the main version
 
-## 12) Regra simples
+## 12) Simple rule
 
-Se a mudança for grande ou arriscada, trabalhe em uma branch separada.
+If the change is large or risky, work in a separate branch.
 
-Se a mudança for pequena e segura, ainda pode usar branch para manter organização.
+If the change is small and safe, you can still use a branch to maintain organization.
 
-## 13) Comando útil para começar
+## 13) Useful commands to start
 
 ```bash
 git status
 git branch
-git checkout -b feature-meu-trabalho
+git checkout -b feature-my-work
 ```
 
-## 14) Dica para continuar depois
+## 14) Tip for continuing later
 
-Para continuar o projeto em outra sessão ou outra máquina:
+To continue the project in another session or on another machine:
 
-1. subir o projeto para GitHub ou salvar no repositório
-2. clonar/abrir a pasta local
-3. rodar os comandos de setup
-4. confirmar em qual branch está trabalhando
-5. continuar a evolução em uma branch específica
+1. push the project to GitHub or save it to the repository
+2. clone/open the local folder
+3. run the setup commands
+4. confirm which branch you are on
+5. continue the development in a specific branch
 
-## 15) Exemplo de fluxo completo
+## 15) Example of a full flow
 
 ```bash
 git checkout -b feature-epk-generator
 git add .
-git commit -m "inicializa gerador de epk"
+git commit -m "initialize epk generator"
 git checkout main
 git merge feature-epk-generator
 ```
 
-## 16) Conclusão
+## 16) Conclusion
 
-Branches são essenciais para manter o projeto organizado, seguro e fácil de evoluir. Para um sistema como este, usar branches por funcionalidade é a melhor prática.
+Branches are essential for keeping the project organized, safe, and easy to evolve. For a system like this, using branches per feature is the best practice.
 
-Se você quiser, depois pode criar branches mais específicas para:
+If you want, you can later create more specific branches for:
 
-- IA
+- AI
 - dashboard
 - shows
-- agenda
-- financeiro
+- scheduling
+- finance
 - marketing
-- upload de mídia
+- media upload
 

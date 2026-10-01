@@ -25,19 +25,39 @@ const SettingsCard: React.FC<{ title: string, children: React.ReactNode, titleIc
     </div>
 );
 
+const getUserAvatarUrl = (user: Pick<User, 'avatar' | 'email' | 'name'>) => {
+    const safeAvatar = user.avatar?.trim();
+    if (safeAvatar && (safeAvatar.startsWith('data:image/') || safeAvatar.startsWith('http://') || safeAvatar.startsWith('https://'))) {
+        return safeAvatar;
+    }
+    const seed = (user.email || user.name || 'bandmate-user').trim() || 'bandmate-user';
+    return `https://i.pravatar.cc/150?u=${encodeURIComponent(seed)}`;
+};
+
+const readImageFile = (file: File | null, onSuccess: (dataUrl: string) => void) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const result = event.target?.result;
+        if (typeof result === 'string') onSuccess(result);
+    };
+    reader.readAsDataURL(file);
+};
+
 const InviteMemberModal: React.FC<{
   onClose: () => void;
-  onInvite: (user: Omit<User, 'id' | 'avatar' | 'secondaryRoles'>) => void;
+  onInvite: (user: Omit<User, 'id' | 'secondaryRoles'>) => void;
 }> = ({ onClose, onInvite }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [systemRole, setSystemRole] = useState<'Admin' | 'Member' | 'Manager'>('Member');
   const [primaryRole, setPrimaryRole] = useState('');
+  const [avatar, setAvatar] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email) return;
-    onInvite({ name, email, systemRole, primaryRole });
+    onInvite({ name, email, systemRole, primaryRole, avatar: avatar || '' });
     onClose();
   };
 
@@ -48,6 +68,20 @@ const InviteMemberModal: React.FC<{
       <div className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-md">
         <h2 className="text-2xl font-bold mb-4">Invite New Member</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex items-center justify-center mb-2">
+            <label className="relative group cursor-pointer">
+              <img src={avatar || 'https://placehold.co/120x120/1f2937/ffffff?text=Add+Photo'} alt="Profile preview" className="h-20 w-20 rounded-full object-cover border-2 border-gray-600 group-hover:opacity-80" />
+              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
+                <EditIcon className="w-5 h-5 text-white" />
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => readImageFile(e.target.files?.[0] ?? null, setAvatar)}
+              />
+            </label>
+          </div>
           <input type="text" placeholder="Full Name" value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-700 p-3 rounded-lg" required />
           <input type="email" placeholder="Email Address" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-gray-700 p-3 rounded-lg" required />
           <input type="text" placeholder="Primary Role (e.g., Guitar)" value={primaryRole} onChange={e => setPrimaryRole(e.target.value)} className="w-full bg-gray-700 p-3 rounded-lg" required />
@@ -162,6 +196,7 @@ export const Settings: React.FC<SettingsProps> = ({ activeBandId, bands, setBand
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
     const [apiUsageStats, setApiUsageStats] = useState<any>(null);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+    const [mailchimpStatus, setMailchimpStatus] = useState('Not configured');
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [importedData, setImportedData] = useState<any>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -191,6 +226,10 @@ export const Settings: React.FC<SettingsProps> = ({ activeBandId, bands, setBand
 
     const handleSettingsChange = (field: keyof BandSettings, value: string) => {
         setBandSettings(prev => ({ ...prev, [field]: value }));
+        if (field === 'mailchimpApiKey' || field === 'mailchimpServerPrefix' || field === 'mailchimpAudienceId') {
+            const hasApi = Boolean((field === 'mailchimpApiKey' ? value : bandSettings.mailchimpApiKey) && (field === 'mailchimpServerPrefix' ? value : bandSettings.mailchimpServerPrefix) && (field === 'mailchimpAudienceId' ? value : bandSettings.mailchimpAudienceId));
+            setMailchimpStatus(hasApi ? 'Ready for newsletter sends' : 'Not configured');
+        }
     };
 
     const handleSaveUser = (updatedUser: User) => {
@@ -198,12 +237,12 @@ export const Settings: React.FC<SettingsProps> = ({ activeBandId, bands, setBand
         setEditingUserId(null);
     };
 
-    const handleInviteMember = (newUserData: Omit<User, 'id' | 'avatar'|'secondaryRoles'>) => {
+    const handleInviteMember = (newUserData: Omit<User, 'id' | 'secondaryRoles'>) => {
         const newUser: User = {
             id: `u${Date.now()}`,
             ...newUserData,
             secondaryRoles: [],
-            avatar: `https://i.pravatar.cc/150?u=${newUserData.email}`
+            avatar: newUserData.avatar || '',
         };
         setUsers(prev => [...prev, newUser]);
     };
@@ -219,14 +258,12 @@ export const Settings: React.FC<SettingsProps> = ({ activeBandId, bands, setBand
     };
     
     const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const newAvatar = event.target?.result as string;
-                setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, avatar: newAvatar } : u));
-            };
-            reader.readAsDataURL(e.target.files[0]);
-        }
+        if (!currentUser) return;
+        const file = e.target.files?.[0];
+        if (!file) return;
+        readImageFile(file, (newAvatar) => {
+            setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, avatar: newAvatar } : u));
+        });
     };
     
     const handleExportData = () => {
@@ -447,6 +484,25 @@ export const Settings: React.FC<SettingsProps> = ({ activeBandId, bands, setBand
                             </div>
                         </div>
                     </SettingsCard>
+                    <SettingsCard title="Mailchimp & Newsletter">
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-900/50 p-4">
+                                <div>
+                                    <p className="font-bold text-white">Status</p>
+                                    <p className="text-sm text-gray-400">{mailchimpStatus}</p>
+                                </div>
+                                <span className="text-xs uppercase tracking-wide text-purple-300">Free API compatible</span>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <input type="text" value={bandSettings.mailchimpApiKey || ''} onChange={e => handleSettingsChange('mailchimpApiKey', e.target.value)} placeholder="Mailchimp API key" className="w-full bg-gray-700 p-3 rounded-lg" />
+                                <input type="text" value={bandSettings.mailchimpServerPrefix || ''} onChange={e => handleSettingsChange('mailchimpServerPrefix', e.target.value)} placeholder="Server prefix (e.g. us1)" className="w-full bg-gray-700 p-3 rounded-lg" />
+                                <input type="text" value={bandSettings.mailchimpAudienceId || ''} onChange={e => handleSettingsChange('mailchimpAudienceId', e.target.value)} placeholder="Audience / list ID" className="w-full bg-gray-700 p-3 rounded-lg" />
+                                <input type="text" value={bandSettings.mailchimpFromName || ''} onChange={e => handleSettingsChange('mailchimpFromName', e.target.value)} placeholder="From name" className="w-full bg-gray-700 p-3 rounded-lg" />
+                            </div>
+                            <input type="email" value={bandSettings.mailchimpReplyTo || ''} onChange={e => handleSettingsChange('mailchimpReplyTo', e.target.value)} placeholder="Reply-to email" className="w-full bg-gray-700 p-3 rounded-lg" />
+                            <p className="text-sm text-gray-400">Mailchimp settings are stored safely in the band profile and used by the release newsletter system. The API key is never committed to the repo.</p>
+                        </div>
+                    </SettingsCard>
                     <div className="bg-gray-800 rounded-xl shadow-lg border-2 border-red-800/50">
                         <div className="p-6 border-b border-red-800/50 flex items-center">
                             <AlertTriangleIcon className="w-6 h-6 mr-3 text-red-500" />
@@ -460,33 +516,33 @@ export const Settings: React.FC<SettingsProps> = ({ activeBandId, bands, setBand
                     </div>
                 </div>
                 <div className="lg:col-span-1 space-y-8">
-                    <SettingsCard title="Monitoramento de API">
+                    <SettingsCard title="API Monitoring">
                         {apiUsageStats ? (
                             <div className="space-y-4">
                                 <div className="bg-gray-700/50 p-4 rounded-lg">
-                                    <h3 className="font-semibold text-sm text-gray-300 mb-3">Resumo de Uso</h3>
+                                    <h3 className="font-semibold text-sm text-gray-300 mb-3">Usage Summary</h3>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="bg-gray-800 p-3 rounded">
-                                            <p className="text-xs text-gray-400">Total de Chamadas</p>
+                                            <p className="text-xs text-gray-400">Total Calls</p>
                                             <p className="text-2xl font-bold text-white">{apiUsageStats.totalCalls}</p>
                                         </div>
                                         <div className="bg-gray-800 p-3 rounded">
-                                            <p className="text-xs text-gray-400">Últimas 24h</p>
+                                            <p className="text-xs text-gray-400">Last 24h</p>
                                             <p className="text-2xl font-bold text-green-400">{apiUsageStats.last24Hours}</p>
                                         </div>
                                         <div className="bg-gray-800 p-3 rounded">
-                                            <p className="text-xs text-gray-400">Bem-sucedidas</p>
+                                            <p className="text-xs text-gray-400">Successful</p>
                                             <p className="text-2xl font-bold text-emerald-400">{apiUsageStats.successfulCalls}</p>
                                         </div>
                                         <div className="bg-gray-800 p-3 rounded">
-                                            <p className="text-xs text-gray-400">Falhadas</p>
+                                            <p className="text-xs text-gray-400">Failed</p>
                                             <p className="text-2xl font-bold text-red-400">{apiUsageStats.failedCalls}</p>
                                         </div>
                                     </div>
                                 </div>
                                 
                                 <div className="bg-gray-700/50 p-4 rounded-lg">
-                                    <h3 className="font-semibold text-sm text-gray-300 mb-3">Por Provedor</h3>
+                                    <h3 className="font-semibold text-sm text-gray-300 mb-3">By Provider</h3>
                                     <div className="space-y-2">
                                         {Object.entries(apiUsageStats.byProvider).map(([provider, data]: [string, any]) => {
                                             const percentage = data.count > 0 ? (data.successful / data.count) * 100 : 0;
@@ -496,7 +552,7 @@ export const Settings: React.FC<SettingsProps> = ({ activeBandId, bands, setBand
                                                     <div className="flex justify-between items-start mb-2">
                                                         <div>
                                                             <p className="font-semibold text-sm">{provider}</p>
-                                                            <p className="text-xs text-gray-400">{data.count} chamadas ({data.successful} OK / {data.failed} erro)</p>
+                                                            <p className="text-xs text-gray-400">{data.count} calls ({data.successful} OK / {data.failed} failed)</p>
                                                         </div>
                                                         {isWarning && percentage < 50 && (
                                                             <span className="text-xs bg-yellow-500/50 text-yellow-200 px-2 py-1 rounded">⚠️ {Math.round(percentage)}%</span>
@@ -519,7 +575,7 @@ export const Settings: React.FC<SettingsProps> = ({ activeBandId, bands, setBand
                                 </div>
                             </div>
                         ) : (
-                            <p className="text-gray-400">Carregando dados de API...</p>
+                            <p className="text-gray-400">Loading API data...</p>
                         )}
                     </SettingsCard>
 
@@ -534,7 +590,7 @@ export const Settings: React.FC<SettingsProps> = ({ activeBandId, bands, setBand
                                     return (
                                         <div key={user.id} className="p-3 bg-gray-700/50 rounded-lg">
                                             <div className="flex justify-between items-start">
-                                                <div className="flex items-center"><div className="relative group"><img src={user.avatar} alt={user.name} className="h-10 w-10 rounded-full group-hover:opacity-50 transition-opacity" />{isCurrentUser && (<label className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity"><EditIcon className="w-5 h-5 text-white" /><input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} /></label>)}</div><div className="ml-3"><p className="font-semibold text-sm">{user.name}</p><p className="text-xs text-gray-400">{user.primaryRole} &bull; {user.systemRole}</p></div></div>
+                                                <div className="flex items-center"><div className="relative group"><img src={getUserAvatarUrl(user)} alt={user.name} className="h-10 w-10 rounded-full group-hover:opacity-50 transition-opacity" />{isCurrentUser && (<label className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity"><EditIcon className="w-5 h-5 text-white" /><input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} /></label>)}</div><div className="ml-3"><p className="font-semibold text-sm">{user.name}</p><p className="text-xs text-gray-400">{user.primaryRole} &bull; {user.systemRole}</p></div></div>
                                                 <div className="flex gap-2"><button onClick={() => setEditingUserId(user.id)} className="p-1 rounded-full hover:bg-gray-700"><EditIcon className="w-4 h-4 text-purple-400"/></button><button onClick={() => handleDeleteUser(user.id)} className="p-1 rounded-full hover:bg-gray-700"><TrashIcon className="w-4 h-4 text-red-500"/></button></div>
                                             </div>
                                         </div>

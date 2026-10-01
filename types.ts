@@ -8,12 +8,24 @@ export type CronLog = {
 };
 
 export type Page = 
-  'dashboard' | 'projects' | 'calendar' | 'financials' | 
+  'dashboard' | 'wizard' | 'links' | 'projects' | 'calendar' | 'financials' | 
   'press' | 'merch' | 'releases' | 'tours' | 'setlists' | 
   'collaborators' | 'resources' | 'settings' | 'production' |
   'funding' | 'festivals' | 'goals' | 'media' | 'epk' |
   'royalties' | 'gigs' | 'campaigns' | 'label' | 'reports' | 'fanbase' |
   'stage' | 'radio' | 'social' | 'sound-match' | 'invoices' | 'residencies' | 'system-status';
+
+export const APP_PAGES: Page[] = [
+  'dashboard', 'wizard', 'links', 'projects', 'calendar', 'financials',
+  'press', 'merch', 'releases', 'tours', 'setlists',
+  'collaborators', 'resources', 'settings', 'production',
+  'funding', 'festivals', 'goals', 'media', 'epk',
+  'royalties', 'gigs', 'campaigns', 'label', 'reports', 'fanbase',
+  'stage', 'radio', 'social', 'sound-match', 'invoices', 'residencies', 'system-status'
+];
+
+export const isValidPage = (value?: string | null): value is Page =>
+  !!value && APP_PAGES.includes(value as Page);
 
 export enum TaskStatus {
   ToDo = 'To Do',
@@ -83,6 +95,8 @@ export enum TransactionType {
   Expense = 'Expense'
 }
 
+export type FinanceAccountType = 'Cash' | 'Bank' | 'PayPal' | 'Card' | 'Other';
+
 export interface Transaction {
   id: string;
   description: string;
@@ -93,6 +107,10 @@ export interface Transaction {
   bandId: string;
   invoiceId?: string;
   gigId?: string;
+  ownerId?: string;
+  accountType?: FinanceAccountType;
+  source?: string;
+  notes?: string;
 }
 
 export interface Budget {
@@ -256,6 +274,12 @@ export interface Setlist {
     name: string;
     songs: string[];
     bandId: string;
+    imageUrl?: string;
+    extractedText?: string;
+    sourceFileName?: string;
+    notes?: string;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface Collaborator {
@@ -264,6 +288,8 @@ export interface Collaborator {
     role: string;
     email: string;
     notes: string;
+    bandName?: string;
+    city?: string;
     bandId: string;
 }
 
@@ -411,6 +437,26 @@ export enum ProductionProjectStatus {
     OnHold = 'On Hold',
 }
 
+export type ProjectPlanningStatus = 'pending' | 'in-progress' | 'done';
+
+export interface ProjectMilestone {
+    id: string;
+    title: string;
+    dueDate: string;
+    ownerId?: string;
+    status: ProjectPlanningStatus;
+    dependencies: string[];
+    deliverables: string[];
+}
+
+export interface ProjectDeliverable {
+    id: string;
+    title: string;
+    ownerId?: string;
+    dueDate?: string;
+    status: ProjectPlanningStatus;
+}
+
 export interface ProductionProject {
     id: string;
     name: string;
@@ -420,7 +466,19 @@ export interface ProductionProject {
     artworkUrl?: string;
     songIds: string[];
     description?: string;
+    strategicGoal?: string;
+    whatMoreCanIDo?: string;
+    priority?: TaskPriority;
+    budget?: number;
+    ownerId?: string;
     teamMemberIds?: string[]; // Links to User.id
+    milestones?: ProjectMilestone[];
+    deliverables?: ProjectDeliverable[];
+    pressPagePrompt?: string;
+    pressPageTemplate?: 'classic' | 'editorial' | 'minimal';
+    publicPageUrl?: string;
+    publicPageHtml?: string;
+    newsletterDraftHtml?: string;
     bandId: string;
 }
 
@@ -473,6 +531,11 @@ export interface MediaAsset {
   folderPath: string; // Path or URL
   tags: string[];
   videoUrl?: string;
+  imageDataUrl?: string;
+  storageMode?: 'browser' | 'server-local' | 'remote';
+  assetPath?: string;
+  createdAt?: string;
+  updatedAt?: string;
   bandId: string;
 }
 
@@ -660,6 +723,12 @@ export interface LabelContact {
   genres?: string;
   submissionUrl?: string;
   notes?: string;
+  website?: string;
+  role?: string;
+  phone?: string;
+  address?: string;
+  source?: 'manual' | 'search' | 'csv' | 'paste';
+  lastVerifiedAt?: string;
   socials?: {
     instagram?: string;
     twitter?: string;
@@ -677,6 +746,8 @@ export interface LabelOpportunity {
   city: string;
   description: string;
   url: string;
+  website?: string;
+  role?: string;
   socials?: {
     instagram?: string;
     twitter?: string;
@@ -711,13 +782,46 @@ export interface RadioOpportunity {
 
 
 // Fanbase & Newsletter Types
+export type ContactConsentStatus = 'double_opt_in' | 'explicit_opt_in' | 'pending_review' | 'unsubscribed' | 'bounced' | 'rejected';
+
 export interface FanContact {
   id: string;
   name: string;
   email: string;
   origin: 'Manual' | 'CSV Import' | 'Website Signup' | string;
+  consentStatus?: ContactConsentStatus;
+  consentDate?: string;
   dateAdded: string;
   bandId: string;
+}
+
+export interface SavedLink {
+  id: string;
+  bandId: string;
+  title: string;
+  url: string;
+  description: string;
+  category: string;
+  createdAt: string;
+}
+
+export interface BandMateWizardAnswerSet {
+  bandName: string;
+  artistName: string;
+  genre: string;
+  city: string;
+  country: string;
+  currentPhase: string;
+  goals: string[];
+  releasePlans: string[];
+  channels: string[];
+  useCases: string[];
+  teamSize: string;
+  fundingNeeds: string;
+  bookingFocus: string;
+  nextMilestone: string;
+  notes: string;
+  updatedAt: string;
 }
 
 // Reports & Analytics Types
@@ -817,6 +921,11 @@ export interface BandSettings {
     issuerAddress: string;
     issuerTaxId: string;
     issuerBankDetails: string;
+    mailchimpApiKey?: string;
+    mailchimpServerPrefix?: string;
+    mailchimpAudienceId?: string;
+    mailchimpFromName?: string;
+    mailchimpReplyTo?: string;
 }
 
 // --- NEW FINANCIALS TYPES ---

@@ -5,7 +5,7 @@ import type { Collaborator } from '../types';
 import { PlusIcon, TrashIcon, EditIcon, SearchIcon } from './icons';
 import { initialCollaborators } from '../data/initialData';
 
-const collaboratorRoles = ["Producer", "Mixing Engineer", "Mastering Engineer", "Photographer", "Videographer", "Graphic Designer", "Session Musician"];
+const collaboratorRoles = ["Producer", "Mixing Engineer", "Mastering Engineer", "Photographer", "Videographer", "Graphic Designer", "Session Musician", "Friend Musician"];
 
 const CollaboratorModal: React.FC<{
     onClose: () => void,
@@ -18,6 +18,8 @@ const CollaboratorModal: React.FC<{
         role: collaborator?.role || collaboratorRoles[0],
         email: collaborator?.email || '',
         notes: collaborator?.notes || '',
+        bandName: collaborator?.bandName || '',
+        city: collaborator?.city || '',
     });
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -43,6 +45,26 @@ const CollaboratorModal: React.FC<{
                         </select>
                         <input type="email" placeholder="Email" value={collabData.email} onChange={e => setCollabData({...collabData, email: e.target.value})} className="bg-gray-700 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"/>
                     </div>
+
+                    {collabData.role === 'Friend Musician' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <input
+                                type="text"
+                                placeholder="Band name"
+                                value={collabData.bandName || ''}
+                                onChange={e => setCollabData({ ...collabData, bandName: e.target.value })}
+                                className="bg-gray-700 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            />
+                            <input
+                                type="text"
+                                placeholder="City"
+                                value={collabData.city || ''}
+                                onChange={e => setCollabData({ ...collabData, city: e.target.value })}
+                                className="bg-gray-700 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            />
+                        </div>
+                    )}
+
                     <textarea placeholder="Notes (e.g., portfolio link, rates)" value={collabData.notes} onChange={e => setCollabData({...collabData, notes: e.target.value})} className="w-full bg-gray-700 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" rows={3}></textarea>
                     <div className="flex justify-end gap-4 pt-4">
                         <button type="button" onClick={onClose} className="bg-gray-600 hover:bg-gray-700 font-bold py-2 px-4 rounded-lg">Cancel</button>
@@ -74,7 +96,9 @@ export const Collaborators: React.FC<CollaboratorsProps> = ({ activeBandId, coll
         const searchLower = searchQuery.toLowerCase();
         const matchesSearch = searchQuery === '' ||
             collab.name.toLowerCase().includes(searchLower) ||
-            collab.email.toLowerCase().includes(searchLower);
+            collab.email.toLowerCase().includes(searchLower) ||
+            (collab.bandName || '').toLowerCase().includes(searchLower) ||
+            (collab.city || '').toLowerCase().includes(searchLower);
         
         const matchesRole = roleFilter === 'All' || collab.role === roleFilter;
 
@@ -147,6 +171,12 @@ export const Collaborators: React.FC<CollaboratorsProps> = ({ activeBandId, coll
                         <div>
                             <h3 className="text-xl font-bold text-white">{collab.name}</h3>
                             <p className="text-purple-400 font-semibold">{collab.role}</p>
+                            {collab.role === 'Friend Musician' && (
+                                <div className="mt-2 space-y-1 text-xs text-gray-300">
+                                    {collab.bandName && <p><span className="text-gray-400">Band:</span> {collab.bandName}</p>}
+                                    {collab.city && <p><span className="text-gray-400">City:</span> {collab.city}</p>}
+                                </div>
+                            )}
                             <p className="text-sm text-gray-400 mt-1">{collab.email}</p>
                         </div>
                         <div className="flex">

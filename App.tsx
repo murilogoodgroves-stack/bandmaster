@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ensureStorageVersion, makeEqualSplit, resolveValidBandId, resolveValidUserId, sanitizeBandScopedList, validBandIds, STORAGE_VERSION, STORAGE_VERSION_KEY } from './state/appStateIntegrity';
+import { canShowBandSetupPrompt } from './state/appStateHydration';
 import { Dashboard } from './components/Dashboard';
 import { Projects } from './components/Projects';
 import { Calendar } from './components/Calendar';
@@ -17,7 +18,7 @@ import { Settings } from './components/Settings';
 import { AiAssistant } from './components/AiAssistant';
 import { BotIcon } from './components/icons';
 import type { Page, EmailCampaign, BandProfile, User, Task, ProductionProject, CalendarEvent, Transaction, MerchItem, Release, Tour, Setlist, Collaborator, PressContact, LabelContact, RadioContact, Venue, OpeningSlotOpportunity, FanContact, Gig, FundingApplication, Festival, BandGoal, MediaAsset, RoyaltyStatement, Song, Budget, LockedDate, PublishedArticle, SaasSubscription, Promoter, ReportConfig, Invoice, BandSettings, CashHolding, MemberTransaction, SavedFundingOpportunity, SavedResidency, EmailTemplate } from './types';
-import { TaskStatus, TaskPriority, EventType } from './types';
+import { APP_PAGES, TaskStatus, TaskPriority, EventType } from './types';
 import { Production } from './components/Production';
 import { Funding } from './components/Funding';
 import { Festivals } from './components/Festivals';
@@ -40,6 +41,8 @@ import { SystemStatus } from './components/SystemStatus';
 import { AIStatusWarning } from './components/AIStatusWarning';
 import { HelpCenter } from './components/HelpCenter';
 import { UserHintManager } from './components/UserHintManager';
+import { BandMateWizard } from './components/BandMateWizard';
+import { LinksDatabase } from './components/LinksDatabase';
 import useLocalStorage from './hooks/useLocalStorage';
 import { 
     initialCampaigns, initialBandProfiles, initialUsers, initialTasks, initialProductionProjects, initialEvents, 
@@ -83,7 +86,7 @@ const BackgroundTaskBar: React.FC<{ tasks: BackgroundTask[] }> = ({ tasks }) => 
   }
 
   return (
-    <div className="fixed top-0 left-64 right-0 bg-brand-bg-card border-b border-brand-border backdrop-blur-sm text-white p-2 z-50 flex items-center gap-6">
+    <div className="fixed top-0 left-0 lg:left-64 right-0 bg-brand-bg-card border-b border-brand-border backdrop-blur-sm text-white p-2 z-50 flex items-center gap-6 overflow-x-auto">
       {tasks.map(task => {
         const currentProgress = progress[task.id] || { p: 0, remaining: task.estimatedDuration };
         return (
@@ -332,20 +335,20 @@ const NewBandModal: React.FC<{
                         <>
                             <div>
                                 <label className="block text-sm text-gray-300 mb-1">Band / project name</label>
-                                <input type="text" placeholder="ex: The Velvet Echo" value={name} onChange={e => setName(e.target.value)} className="w-full bg-brand-bg-content p-3 rounded-lg ring-brand-accent" required />
+                                <input type="text" placeholder="e.g. The Velvet Echo" value={name} onChange={e => setName(e.target.value)} className="w-full bg-brand-bg-content p-3 rounded-lg ring-brand-accent" required />
                             </div>
                             <div>
                                 <label className="block text-sm text-gray-300 mb-1">Genre / sound</label>
-                                <input type="text" placeholder="ex: indie rock, dream pop, shoegaze" value={genre} onChange={e => setGenre(e.target.value)} className="w-full bg-brand-bg-content p-3 rounded-lg ring-brand-accent" required />
+                                <input type="text" placeholder="e.g. indie rock, dream pop, shoegaze" value={genre} onChange={e => setGenre(e.target.value)} className="w-full bg-brand-bg-content p-3 rounded-lg ring-brand-accent" required />
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-sm text-gray-300 mb-1">City</label>
-                                    <input type="text" placeholder="ex: São Paulo" value={city} onChange={e => setCity(e.target.value)} className="w-full bg-brand-bg-content p-3 rounded-lg ring-brand-accent" />
+                                    <input type="text" placeholder="e.g. Berlin" value={city} onChange={e => setCity(e.target.value)} className="w-full bg-brand-bg-content p-3 rounded-lg ring-brand-accent" />
                                 </div>
                                 <div>
                                     <label className="block text-sm text-gray-300 mb-1">Country</label>
-                                    <input type="text" placeholder="ex: Brazil" value={country} onChange={e => setCountry(e.target.value)} className="w-full bg-brand-bg-content p-3 rounded-lg ring-brand-accent" />
+                                    <input type="text" placeholder="e.g. Germany" value={country} onChange={e => setCountry(e.target.value)} className="w-full bg-brand-bg-content p-3 rounded-lg ring-brand-accent" />
                                 </div>
                             </div>
                         </>
@@ -521,12 +524,56 @@ const CurrentUserSetupModal: React.FC<{ onSave: (user: { name: string; email: st
   );
 };
 
+const APP_STATE_KEY = 'bandmate-app-state';
+
+const PAGE_META: Record<Page, { title: string; summary: string }> = {
+  dashboard: { title: 'Dashboard', summary: 'Band overview and the next move' },
+  wizard: { title: 'Band setup', summary: 'Keep onboarding and plans moving' },
+  links: { title: 'Links database', summary: 'Keep your key URLs and references ready' },
+  projects: { title: 'Projects', summary: 'Production tasks and milestones' },
+  calendar: { title: 'Calendar', summary: 'Shows, deadlines, and sessions' },
+  financials: { title: 'Financials', summary: 'Cash, expenses, and ledger tracking' },
+  press: { title: 'Press outreach', summary: 'Contacts and media outreach' },
+  merch: { title: 'Merch', summary: 'Merch inventory and sales' },
+  releases: { title: 'Releases', summary: 'Release strategy and planning' },
+  tours: { title: 'Tours', summary: 'Tour planning and logistics' },
+  setlists: { title: 'Setlists', summary: 'Set order and performance prep' },
+  collaborators: { title: 'Collaborators', summary: 'People and teams in the project' },
+  resources: { title: 'Resources', summary: 'Templates, notes, and references' },
+  settings: { title: 'Settings', summary: 'Band settings and configuration' },
+  production: { title: 'Production', summary: 'Songs, production tasks, and delivery' },
+  funding: { title: 'Funding', summary: 'Opportunities and grant pipeline' },
+  festivals: { title: 'Festivals', summary: 'Festivals and opportunities' },
+  goals: { title: 'Goals', summary: 'Vision and tracking milestones' },
+  media: { title: 'Media archive', summary: 'Artwork, assets, and media library' },
+  epk: { title: 'EPK', summary: 'Press kit and artist profile' },
+  royalties: { title: 'Royalties', summary: 'Revenue split and earnings' },
+  gigs: { title: 'Gigs', summary: 'Bookings and venue coordination' },
+  campaigns: { title: 'Campaigns', summary: 'Newsletter and outreach flow' },
+  label: { title: 'Label reachout', summary: 'Labels, contacts, and outreach' },
+  reports: { title: 'Reports', summary: 'Insights and summaries' },
+  fanbase: { title: 'Fanbase', summary: 'Audience and fan management' },
+  stage: { title: 'Stage plot', summary: 'Stage and show planning' },
+  radio: { title: 'Radio outreach', summary: 'Radio pitching and media work' },
+  social: { title: 'Social studio', summary: 'Social content and brand' },
+  'sound-match': { title: 'Sound match', summary: 'Find similar artists and partners' },
+  invoices: { title: 'Invoices', summary: 'Billing and payment tracking' },
+  residencies: { title: 'Residencies', summary: 'Residency pipeline' },
+  'system-status': { title: 'System status', summary: 'Operational health and app status' },
+};
+
+const normalizePage = (value?: string | null): Page => {
+  const candidate = value?.split('?')[0]?.trim() || '';
+  return APP_PAGES.includes(candidate as Page) ? (candidate as Page) : 'dashboard';
+};
+
 const App: React.FC = () => {
   // Fix: Initialize page state by splitting query params to ensure deep links work correctly on refresh
-  const [page, setPage] = useState<Page>(() => (window.location.hash.substring(1).split('?')[0] || 'dashboard') as Page);
+  const [page, setPage] = useState<Page>(() => normalizePage(window.location.hash.substring(1)));
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
   const [isHelpCenterOpen, setIsHelpCenterOpen] = useState(false);
   const [isNewBandModalOpen, setIsNewBandModalOpen] = useState(false);
+  const [isHydratingRemoteState, setIsHydratingRemoteState] = useState(true);
   const [editingBandId, setEditingBandId] = useState<string | null>(null);
   const [backgroundTasks, setBackgroundTasks] = useState<BackgroundTask[]>([]);
   
@@ -539,6 +586,7 @@ const App: React.FC = () => {
   const [currentUserId, setCurrentUserId] = useLocalStorage<string>('currentUserId', users[0]?.id || '');
   const currentUser = useMemo(() => users.find(u => u.id === currentUserId) || users[0] || null, [users, currentUserId]);
   const resolvedActiveBandId = useMemo(() => resolveValidBandId(bands, activeBandId), [bands, activeBandId]);
+  const resumeStorageKey = useMemo(() => `bandmate-resume-${resolvedActiveBandId || activeBandId || 'default'}`, [resolvedActiveBandId, activeBandId]);
   const [tasks, setTasks] = useLocalStorage<Task[]>('tasks', initialTasks);
   const [projects, setProjects] = useLocalStorage<ProductionProject[]>('productionProjects', initialProductionProjects);
   const [events, setEvents] = useLocalStorage<CalendarEvent[]>('events', initialEvents);
@@ -701,6 +749,172 @@ const App: React.FC = () => {
   }
   
   const [searchCache, setSearchCache] = useLocalStorage<SearchCacheItem[]>('searchCache', []);
+
+  const appStateSnapshot = useMemo(() => ({
+    bands,
+    activeBandId,
+    users,
+    currentUserId,
+    tasks,
+    projects,
+    events,
+    lockedDates,
+    transactions,
+    memberTransactions,
+    invoices,
+    emailTemplates,
+    bandSettingsMap,
+    royalties,
+    gigs,
+    tours,
+    merch,
+    pressContacts,
+    radioContacts,
+    labelContacts,
+    campaigns,
+    fanContacts,
+    promoters,
+    venues,
+    openingSlots,
+    budgets,
+    splitsMap,
+    cashOnHandMap,
+    songs,
+    releases,
+    setlists,
+    goals,
+    fundingApps,
+    savedFundingOpps,
+    savedResidencies,
+    festivals,
+    collaborators,
+    media,
+    articles,
+    bandBioMap,
+    epkPhotoIdMap,
+    epkVideoIdMap,
+    searchCache,
+  }), [
+    activeBandId,
+    articles,
+    bandBioMap,
+    bandSettingsMap,
+    bands,
+    budgets,
+    campaigns,
+    cashOnHandMap,
+    collaborators,
+    currentUserId,
+    emailTemplates,
+    epkPhotoIdMap,
+    events,
+    fanContacts,
+    festivals,
+    fundingApps,
+    gigs,
+    goals,
+    invoices,
+    labelContacts,
+    lockedDates,
+    media,
+    memberTransactions,
+    merch,
+    openingSlots,
+    pressContacts,
+    projects,
+    promoters,
+    radioContacts,
+    releases,
+    royalties,
+    savedFundingOpps,
+    savedResidencies,
+    searchCache,
+    setlists,
+    songs,
+    splitsMap,
+    tasks,
+    tours,
+    transactions,
+    users,
+    venues,
+  ]);
+
+  useEffect(() => {
+    const handler = setTimeout(async () => {
+      try {
+        const response = await fetch('/api/app-state', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            key: APP_STATE_KEY,
+            payload: appStateSnapshot,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server rejected app sync with status ${response.status}`);
+        }
+      } catch (error) {
+        console.warn('Neon app-state sync failed; local browser storage remains active.', error);
+      }
+    }, 1500);
+
+    return () => clearTimeout(handler);
+  }, [appStateSnapshot]);
+
+  useEffect(() => {
+    const hydrateFromNeon = async () => {
+      setIsHydratingRemoteState(true);
+
+      try {
+        if (bands.length > 0 || users.length > 0 || tasks.length > 0) {
+          return;
+        }
+
+        const response = await fetch(`/api/app-state?key=${encodeURIComponent(APP_STATE_KEY)}`);
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+        const payload = data?.payload;
+        if (!payload || typeof payload !== 'object') {
+          return;
+        }
+
+        if (Array.isArray(payload.bands)) setBands(payload.bands);
+        if (Array.isArray(payload.users)) setUsers(payload.users);
+        if (payload.activeBandId) setActiveBandId(String(payload.activeBandId));
+        if (payload.currentUserId) setCurrentUserId(String(payload.currentUserId));
+        if (Array.isArray(payload.tasks)) setTasks(payload.tasks);
+        if (Array.isArray(payload.projects)) setProjects(payload.projects);
+        if (Array.isArray(payload.events)) setEvents(payload.events);
+        if (Array.isArray(payload.transactions)) setTransactions(payload.transactions);
+        if (Array.isArray(payload.merch)) setMerch(payload.merch);
+        if (Array.isArray(payload.releases)) setReleases(payload.releases);
+        if (Array.isArray(payload.tours)) setTours(payload.tours);
+        if (Array.isArray(payload.gigs)) setGigs(payload.gigs);
+        if (Array.isArray(payload.campaigns)) setCampaigns(payload.campaigns);
+        if (Array.isArray(payload.media)) setMedia(payload.media);
+        if (Array.isArray(payload.articles)) setArticles(payload.articles);
+        if (Array.isArray(payload.searchCache)) setSearchCache(payload.searchCache);
+        if (payload.bandSettingsMap && typeof payload.bandSettingsMap === 'object') setBandSettingsMap(payload.bandSettingsMap as Record<string, BandSettings>);
+        if (payload.cashOnHandMap && typeof payload.cashOnHandMap === 'object') setCashOnHandMap(payload.cashOnHandMap as Record<string, number>);
+        if (payload.splitsMap && typeof payload.splitsMap === 'object') setSplitsMap(payload.splitsMap as Record<string, Record<string, number>>);
+        if (payload.bandBioMap && typeof payload.bandBioMap === 'object') setBandBioMap(payload.bandBioMap as Record<string, string>);
+        if (payload.epkPhotoIdMap && typeof payload.epkPhotoIdMap === 'object') setEpkPhotoIdMap(payload.epkPhotoIdMap as Record<string, string>);
+        if (payload.epkVideoIdMap && typeof payload.epkVideoIdMap === 'object') setEpkVideoIdMap(payload.epkVideoIdMap as Record<string, string>);
+      } catch (error) {
+        console.warn('Could not hydrate app state from Neon.', error);
+      } finally {
+        setIsHydratingRemoteState(false);
+      }
+    };
+
+    hydrateFromNeon();
+  }, [bands.length, users.length, tasks.length, setBands, setUsers, setActiveBandId, setCurrentUserId, setTasks, setProjects, setEvents, setTransactions, setMerch, setReleases, setTours, setGigs, setCampaigns, setMedia, setArticles, setSearchCache, setBandSettingsMap, setCashOnHandMap, setSplitsMap, setBandBioMap, setEpkPhotoIdMap, setEpkVideoIdMap]);
   
   const saveSearchResults = useCallback((searchTerm: string, source: string, results: any[]) => {
     setSearchCache(prev => {
@@ -769,11 +983,11 @@ const App: React.FC = () => {
               band.id === editingBandId ? { ...band, ...normalizedBand } : band
           ));
           setTasks(prev => [
-            ...prev.filter(task => task.bandId !== editingBandId),
+            ...prev.filter(task => task.bandId !== editingBandId || task.projectId !== `band-plan-${editingBandId}`),
             ...plan.tasks.filter(task => task.bandId === editingBandId)
           ]);
           setEvents(prev => [
-            ...prev.filter(event => event.bandId !== editingBandId),
+            ...prev.filter(event => event.bandId !== editingBandId || (!event.id.startsWith('release-event-') && !event.id.startsWith('show-event-'))),
             ...plan.events.filter(event => event.bandId === editingBandId)
           ]);
           setActiveBandId(editingBandId);
@@ -813,16 +1027,16 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (bands.length === 0) {
+    if (canShowBandSetupPrompt(bands.length, isHydratingRemoteState)) {
       setIsNewBandModalOpen(true);
       setActiveBandId('');
       return;
     }
 
-    if (!bands.some((band) => band.id === activeBandId)) {
+    if (bands.length > 0 && !bands.some((band) => band.id === activeBandId)) {
       setActiveBandId(bands[0].id);
     }
-  }, [bands, activeBandId, setActiveBandId]);
+  }, [bands, activeBandId, isHydratingRemoteState, setActiveBandId]);
 
   useEffect(() => {
     if (users.length === 0) {
@@ -864,7 +1078,8 @@ const App: React.FC = () => {
   // Effect for hash-based routing
   useEffect(() => {
     const handleHashChange = () => {
-      setPage((window.location.hash.substring(1).split('?')[0] || 'dashboard') as Page);
+      const nextPage = normalizePage(window.location.hash.substring(1));
+      setPage(prevPage => (prevPage === nextPage ? prevPage : nextPage));
     };
     window.addEventListener('hashchange', handleHashChange);
     // Set initial page in case there's a hash on load
@@ -873,6 +1088,20 @@ const App: React.FC = () => {
       window.removeEventListener('hashchange', handleHashChange);
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const meta = PAGE_META[page] || { title: 'Dashboard', summary: 'Band overview and the next move' };
+    window.localStorage.setItem(
+      resumeStorageKey,
+      JSON.stringify({
+        page,
+        title: meta.title,
+        summary: meta.summary,
+        timestamp: new Date().toISOString(),
+      })
+    );
+  }, [page, resumeStorageKey]);
   
   // Effect for background task management
   useEffect(() => {
@@ -968,6 +1197,10 @@ const App: React.FC = () => {
             venues={venues}
             openingSlots={openingSlots}
         />;
+      case 'wizard':
+        return <BandMateWizard activeBandId={activeBandId} bands={bands} currentUser={currentUser} />;
+      case 'links':
+        return <LinksDatabase activeBandId={activeBandId} bands={bands} searchCache={searchCache} />;
       case 'projects':
         return <Projects {...allProps} tasks={tasks} setTasks={setTasks} projects={projects} setProjects={setProjects} releases={releases} setReleases={setReleases} />;
       case 'calendar':
@@ -977,6 +1210,7 @@ const App: React.FC = () => {
             tasks={tasks} setTasks={setTasks}
             releases={releases} 
             tours={tours} 
+            gigs={gigs} setGigs={setGigs}
             festivals={festivals} setFestivals={setFestivals}
             fundingApplications={fundingApps} setFundingApplications={setFundingApps}
             lockedDates={lockedDates} 
@@ -1054,7 +1288,7 @@ const App: React.FC = () => {
       case 'gigs':
         return <Gigs {...allProps} gigs={gigs} setGigs={setGigs} venues={venues} setVenues={setVenues} openingSlots={openingSlots} setOpeningSlots={setOpeningSlots} invoices={invoices} setInvoices={setInvoices} transactions={transactions} setTransactions={setTransactions} bandSettings={bandSettings} />;
       case 'campaigns':
-        return <Campaigns {...allProps} campaigns={campaigns} setCampaigns={setCampaigns} pressContacts={pressContacts} venues={venues} promoters={promoters} labelContacts={labelContacts} radioContacts={radioContacts} fanContacts={fanContacts} projects={projects} />;
+        return <Campaigns {...allProps} campaigns={campaigns} setCampaigns={setCampaigns} pressContacts={pressContacts} venues={venues} promoters={promoters} labelContacts={labelContacts} radioContacts={radioContacts} fanContacts={fanContacts} projects={projects} bandSettings={bandSettings} />;
       case 'fanbase':
         return <Fanbase {...allProps} fanContacts={fanContacts} setFanContacts={setFanContacts} />;
       case 'stage':
@@ -1100,7 +1334,7 @@ const App: React.FC = () => {
         currentUser={currentUser || users[0] || null}
         setUsers={setUsers}
       />
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative pt-16 bg-brand-bg-content m-4 rounded-lg">
+      <main className={`flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative ${backgroundTasks.length > 0 ? 'pt-16' : ''} bg-brand-bg-content m-4 rounded-lg`}>
         <BackgroundTaskBar tasks={backgroundTasks} />
         {renderPage()}
       </main>

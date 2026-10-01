@@ -1,11 +1,12 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
-import type { Song, ProductionProject, Task, User } from '../types';
+import type { Song, ProductionProject, Task, User, ProjectMilestone, ProjectDeliverable } from '../types';
 import { SongStatus, ProjectType, Daw, ProductionProjectStatus, TaskStatus, TaskPriority } from '../types';
 import { songChecklistTemplate } from '../data/initialData';
 import { PlusIcon, TrashIcon, EditIcon, ChevronDownIcon, FolderIcon, MusicIcon, ChevronLeftIcon, SaveIcon } from './icons';
 import { Tip } from './Tip';
 import { ProjectModal } from './modals/ProjectModal';
+import { calculateProjectProgress, summarizeProjectPlanning, createDefaultProjectPlan } from '../projectPlanning';
 
 
 // Helper function to calculate song progress
@@ -17,11 +18,13 @@ const calculateSongProgress = (song: Song, allTasks: Task[]) => {
 };
 
 // Helper function to calculate project progress
-const calculateProjectProgress = (project: ProductionProject, allTasks: Task[]) => {
+const calculateProjectProgressForBoard = (project: ProductionProject, allTasks: Task[]) => {
+    const planningProgress = calculateProjectProgress(project);
     const projectTasks = allTasks.filter(t => t.projectId === project.id && !t.songId);
-    if (projectTasks.length === 0) return 0;
+    if (projectTasks.length === 0) return planningProgress;
     const completedTasks = projectTasks.filter(t => t.status === TaskStatus.Done).length;
-    return Math.round((completedTasks / projectTasks.length) * 100);
+    const taskProgress = Math.round((completedTasks / projectTasks.length) * 100);
+    return Math.min(100, Math.round((planningProgress * 0.7) + (taskProgress * 0.3)));
 };
 
 interface ProductionProps {
@@ -131,9 +134,12 @@ export const Production: React.FC<ProductionProps> = ({ users, activeBandId, son
     };
 
     const openNewProjectModal = () => {
+        const targetDate = new Date(Date.now() + 1000 * 60 * 60 * 24 * 45).toISOString().slice(0, 10);
+        const projectDefaults = createDefaultProjectPlan('New project', ProjectType.Album, targetDate);
         const newProject: ProductionProject = {
-            id: `proj-${Date.now()}`, name: '', type: ProjectType.Album, status: ProductionProjectStatus.Planning, targetReleaseDate: '',
-            songIds: [], description: '', teamMemberIds: [],
+            id: `proj-${Date.now()}`, name: '', type: ProjectType.Album, status: ProductionProjectStatus.Planning, targetReleaseDate: targetDate,
+            songIds: [], description: '', teamMemberIds: [], priority: TaskPriority.Medium, ownerId: users[0]?.id || '',
+            milestones: projectDefaults.milestones, deliverables: projectDefaults.deliverables,
             bandId: activeBandId,
         };
         setEditingProject(newProject);
@@ -164,6 +170,7 @@ export const Production: React.FC<ProductionProps> = ({ users, activeBandId, son
                         onNewSong={openNewSongModal}
                         onEditSong={openEditSongModal}
                         onDeleteSong={handleDeleteSong}
+                        onUpdateProject={(updater) => setProjects(prev => prev.map(p => p.id === selectedProject.id ? updater(p) : p))}
                     />;
         }
         return <ProjectLibraryView projects={projects} tasks={tasks} onSelectProject={selectProject} onNewProject={openNewProjectModal} onDeleteProject={handleDeleteProject} onEditProject={openEditProjectModal} />;
@@ -194,44 +201,51 @@ const ProjectLibraryView: React.FC<{ projects: ProductionProject[], tasks: Task[
         <Tip onDismiss={() => {}}>This is your central hub for music creation. All projects and their tasks are now synced with the main Projects board.</Tip>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {projects.filter(p => p.type !== ProjectType.Other).map(p => (
-                <ProjectCard key={p.id} project={p} progress={calculateProjectProgress(p, tasks)} onSelect={() => onSelectProject(p.id)} onDelete={() => onDeleteProject(p.id)} onEdit={() => onEditProject(p)} />
+                <ProjectCard key={p.id} project={p} progress={calculateProjectProgressForBoard(p, tasks)} onSelect={() => onSelectProject(p.id)} onDelete={() => onDeleteProject(p.id)} onEdit={() => onEditProject(p)} />
             ))}
         </div>
     </div>
 );
 
-const ProjectCard: React.FC<{ project: ProductionProject, progress: number, onSelect: () => void, onDelete: () => void, onEdit: () => void }> = ({ project, progress, onSelect, onDelete, onEdit }) => (
-    <div onClick={onSelect} className="bg-gray-800 rounded-lg shadow-lg cursor-pointer hover:shadow-purple-500/20 hover:-translate-y-1 transition-all group relative">
-        <div className="absolute top-3 right-3 flex gap-2 z-10">
-             <button 
-                onClick={(e) => { e.stopPropagation(); onEdit(); }}
-                className="p-1.5 bg-gray-900/50 rounded-full text-purple-400 hover:bg-purple-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                title="Edit Project"
-            >
-                <EditIcon className="w-5 h-5" />
-            </button>
-            <button 
-                onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                className="p-1.5 bg-gray-900/50 rounded-full text-red-500 hover:bg-red-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                title="Delete Project"
-            >
-                <TrashIcon className="w-5 h-5" />
-            </button>
-        </div>
-        <div className="w-full h-40 bg-gray-700 rounded-t-lg flex items-center justify-center">
-            {project.artworkUrl ? <p className="text-gray-500 text-sm">(Artwork)</p> : <FolderIcon className="w-16 h-16 text-gray-600" />}
-        </div>
-        <div className="p-4">
-            <p className="text-xs text-purple-400">{project.type}</p>
-            <h3 className="text-xl font-bold text-white truncate">{project.name}</h3>
-            <p className="text-sm text-gray-400">Due: {new Date(project.targetReleaseDate).toLocaleDateString()}</p>
-            <div className="w-full bg-gray-700 rounded-full h-2.5 mt-3">
-                <div className="bg-purple-600 h-2.5 rounded-full" style={{ width: `${progress}%` }}></div>
+const ProjectCard: React.FC<{ project: ProductionProject, progress: number, onSelect: () => void, onDelete: () => void, onEdit: () => void }> = ({ project, progress, onSelect, onDelete, onEdit }) => {
+    const summary = summarizeProjectPlanning(project);
+    return (
+        <div onClick={onSelect} className="bg-gray-800 rounded-lg shadow-lg cursor-pointer hover:shadow-purple-500/20 hover:-translate-y-1 transition-all group relative">
+            <div className="absolute top-3 right-3 flex gap-2 z-10">
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onEdit(); }}
+                    className="p-1.5 bg-gray-900/50 rounded-full text-purple-400 hover:bg-purple-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Edit Project"
+                >
+                    <EditIcon className="w-5 h-5" />
+                </button>
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                    className="p-1.5 bg-gray-900/50 rounded-full text-red-500 hover:bg-red-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Delete Project"
+                >
+                    <TrashIcon className="w-5 h-5" />
+                </button>
             </div>
-            <p className="text-right text-xs text-gray-500 mt-1">{progress}% Complete</p>
+            <div className="w-full h-40 bg-gray-700 rounded-t-lg flex items-center justify-center">
+                {project.artworkUrl ? <p className="text-gray-500 text-sm">(Artwork)</p> : <FolderIcon className="w-16 h-16 text-gray-600" />}
+            </div>
+            <div className="p-4">
+                <p className="text-xs text-purple-400">{project.type}</p>
+                <h3 className="text-xl font-bold text-white truncate">{project.name}</h3>
+                <p className="text-sm text-gray-400">Due: {new Date(project.targetReleaseDate).toLocaleDateString()}</p>
+                <div className="mt-3 flex items-center justify-between text-xs text-gray-300">
+                    <span>{summary.doneMilestones}/{summary.totalMilestones} milestones</span>
+                    <span>{summary.doneDeliverables}/{summary.totalDeliverables} deliverables</span>
+                </div>
+                <div className="w-full bg-gray-700 rounded-full h-2.5 mt-2">
+                    <div className="bg-purple-600 h-2.5 rounded-full" style={{ width: `${progress}%` }}></div>
+                </div>
+                <p className="text-right text-xs text-gray-500 mt-1">{progress}% Complete</p>
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 
 // View for a single project's details
@@ -247,7 +261,8 @@ const ProjectDetailView: React.FC<{
     onNewSong: () => void;
     onEditSong: (song: Song) => void;
     onDeleteSong: (songId: string) => void;
-}> = ({ project, songs, setSongs, tasks, setTasks, users, onBack, onEditProject, onNewSong, onEditSong, onDeleteSong }) => {
+    onUpdateProject: (updater: (project: ProductionProject) => ProductionProject) => void;
+}> = ({ project, songs, setSongs, tasks, setTasks, users, onBack, onEditProject, onNewSong, onEditSong, onDeleteSong, onUpdateProject }) => {
     const [selectedSongId, setSelectedSongId] = useState<string | null>(project.songIds[0] || null);
 
     const projectSongs = useMemo(() => songs.filter(s => project.songIds.includes(s.id)), [songs, project.songIds]);
@@ -291,7 +306,26 @@ const ProjectDetailView: React.FC<{
     const handleDeleteTask = (taskId: string) => {
         setTasks(prev => prev.filter(t => t.id !== taskId));
     };
-    
+
+    const planningSummary = summarizeProjectPlanning(project);
+    const updateMilestoneStatus = (milestoneId: string, nextStatus: ProjectMilestone['status']) => {
+        onUpdateProject((currentProject) => ({
+            ...currentProject,
+            milestones: (currentProject.milestones ?? []).map((milestone) =>
+                milestone.id === milestoneId ? { ...milestone, status: nextStatus } : milestone
+            )
+        }));
+    };
+
+    const updateDeliverableStatus = (deliverableId: string, nextStatus: ProjectDeliverable['status']) => {
+        onUpdateProject((currentProject) => ({
+            ...currentProject,
+            deliverables: (currentProject.deliverables ?? []).map((deliverable) =>
+                deliverable.id === deliverableId ? { ...deliverable, status: nextStatus } : deliverable
+            )
+        }));
+    };
+
     return (
         <div>
             <button onClick={onBack} className="flex items-center text-sm text-purple-400 hover:underline mb-4">
@@ -306,12 +340,78 @@ const ProjectDetailView: React.FC<{
                     <EditIcon className="h-5 h-5 mr-2" /> Edit Project
                 </button>
             </div>
-            
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                <div className="bg-gray-800 p-4 rounded-xl">
+                    <p className="text-xs uppercase text-gray-500">Progress</p>
+                    <p className="text-2xl font-bold text-purple-300">{planningSummary.progress}%</p>
+                </div>
+                <div className="bg-gray-800 p-4 rounded-xl">
+                    <p className="text-xs uppercase text-gray-500">Milestones</p>
+                    <p className="text-2xl font-bold text-blue-300">{planningSummary.doneMilestones}/{planningSummary.totalMilestones}</p>
+                </div>
+                <div className="bg-gray-800 p-4 rounded-xl">
+                    <p className="text-xs uppercase text-gray-500">Next milestone</p>
+                    <p className="text-md font-semibold text-green-300">{planningSummary.nextMilestone?.title ?? 'No milestone scheduled'}</p>
+                </div>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-1">
                     <Tracklist songs={projectSongs} onNewSong={onNewSong} onEditSong={onEditSong} onDeleteSong={onDeleteSong} onSelectSong={handleSelectSong} selectedSongId={selectedSongId} allTasks={tasks} />
                 </div>
                 <div className="lg:col-span-2 space-y-6">
+                    <div className="bg-gray-800 p-4 rounded-xl">
+                        <h2 className="text-xl font-bold mb-3">Project Planning</h2>
+                        <div className="space-y-3">
+                            {(project.milestones ?? []).map((milestone) => (
+                                <div key={milestone.id} className="rounded-lg border border-gray-700 bg-gray-900/50 p-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <p className="font-semibold text-white">{milestone.title}</p>
+                                            <p className="text-xs text-gray-400">Due {new Date(milestone.dueDate).toLocaleDateString()}</p>
+                                        </div>
+                                        <select
+                                            value={milestone.status}
+                                            onChange={(e) => updateMilestoneStatus(milestone.id, e.target.value as ProjectMilestone['status'])}
+                                            className="bg-gray-700 text-xs text-white p-1.5 rounded-md"
+                                        >
+                                            <option value="pending">Pending</option>
+                                            <option value="in-progress">In progress</option>
+                                            <option value="done">Done</option>
+                                        </select>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-2">Deliverables: {milestone.deliverables.join(', ') || 'None yet'}</p>
+                                </div>
+                            ))}
+                        </div>
+                        {(project.milestones ?? []).length === 0 && <p className="text-sm text-gray-500">No milestones configured yet.</p>}
+                    </div>
+
+                    <div className="bg-gray-800 p-4 rounded-xl">
+                        <h2 className="text-xl font-bold mb-3">Deliverables</h2>
+                        <div className="space-y-3">
+                            {(project.deliverables ?? []).map((deliverable) => (
+                                <div key={deliverable.id} className="flex items-center justify-between gap-3 rounded-lg border border-gray-700 bg-gray-900/50 p-3">
+                                    <div>
+                                        <p className="font-medium text-white">{deliverable.title}</p>
+                                        {deliverable.dueDate && <p className="text-xs text-gray-400">Due {new Date(deliverable.dueDate).toLocaleDateString()}</p>}
+                                    </div>
+                                    <select
+                                        value={deliverable.status}
+                                        onChange={(e) => updateDeliverableStatus(deliverable.id, e.target.value as ProjectDeliverable['status'])}
+                                        className="bg-gray-700 text-xs text-white p-1.5 rounded-md"
+                                    >
+                                        <option value="pending">Pending</option>
+                                        <option value="in-progress">In progress</option>
+                                        <option value="done">Done</option>
+                                    </select>
+                                </div>
+                            ))}
+                        </div>
+                        {(project.deliverables ?? []).length === 0 && <p className="text-sm text-gray-500">No deliverables configured yet.</p>}
+                    </div>
+
                     {selectedSong && (
                         <>
                             <ChecklistDisplay 

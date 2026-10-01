@@ -5,6 +5,43 @@ import { initialMediaAssets } from '../data/initialData';
 import { PlusIcon, TrashIcon, EditIcon, SearchIcon, VideoIcon, ImageIcon, LinkIcon } from './icons';
 import { Tip } from './Tip';
 
+const fileToDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result || ''));
+  reader.onerror = () => reject(new Error('Could not read the selected file.'));
+  reader.readAsDataURL(file);
+});
+
+const persistMediaFile = async (file: File) => {
+  const dataUrl = await fileToDataUrl(file);
+
+  try {
+    const response = await fetch('/api/media/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileName: file.name, dataUrl }),
+    });
+
+    const result = await response.json();
+    if (!response.ok || result.status !== 'ok') {
+      throw new Error(result?.message || 'Server upload failed');
+    }
+
+    return {
+      imageDataUrl: result.path ? `${window.location.origin}${result.path}` : dataUrl,
+      assetPath: result.path || dataUrl,
+      storageMode: result.storageMode || 'server-local',
+    };
+  } catch (error) {
+    console.warn('Server-local media upload unavailable; using browser-persisted fallback.', error);
+    return {
+      imageDataUrl: dataUrl,
+      assetPath: dataUrl,
+      storageMode: 'browser' as const,
+    };
+  }
+};
+
 // Sub-component for the Add/Edit form, placed within a modal
 const AssetFormModal: React.FC<{
   asset: MediaAsset | null;
@@ -18,15 +55,32 @@ const AssetFormModal: React.FC<{
     folderPath: asset?.folderPath || '',
     tags: asset?.tags.join(', ') || '',
     videoUrl: asset?.videoUrl || '',
+    imageDataUrl: asset?.imageDataUrl || '',
+    storageMode: asset?.storageMode || 'browser' as MediaAsset['storageMode'],
+    assetPath: asset?.assetPath || '',
   });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({
+    let assetData = {
       id: asset?.id,
       ...formData,
       tags: formData.tags.split(',').map(tag => tag.trim()).filter(Boolean),
-    });
+    };
+
+    if (selectedFile && formData.type === 'Photo') {
+      const uploaded = await persistMediaFile(selectedFile);
+      assetData = {
+        ...assetData,
+        imageDataUrl: uploaded.imageDataUrl,
+        assetPath: uploaded.assetPath,
+        storageMode: uploaded.storageMode,
+        folderPath: uploaded.assetPath || formData.folderPath,
+      };
+    }
+
+    onSave(assetData);
   };
 
   return (
@@ -48,6 +102,29 @@ const AssetFormModal: React.FC<{
           ) : (
             <input type="text" placeholder="Folder Path" value={formData.folderPath} onChange={e => setFormData({ ...formData, folderPath: e.target.value })} className="w-full bg-gray-700 p-3 rounded-lg" />
           )}
+
+          {formData.type === 'Photo' && (
+            <div className="space-y-2">
+              <label className="text-sm text-gray-300">Upload photo for persistent archive storage</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  setSelectedFile(file);
+                  if (file) {
+                    const preview = await fileToDataUrl(file);
+                    setFormData({ ...formData, imageDataUrl: preview, storageMode: 'browser', assetPath: preview, folderPath: formData.folderPath || '/uploads' });
+                  }
+                }}
+                className="w-full rounded-lg border border-gray-600 bg-gray-700 p-2 text-sm text-gray-200"
+              />
+              {formData.imageDataUrl && (
+                <img src={formData.imageDataUrl} alt="Selected asset preview" className="h-24 w-full rounded-lg object-cover" />
+              )}
+            </div>
+          )}
+
           <input type="text" placeholder="Tags (comma-separated)" value={formData.tags} onChange={e => setFormData({ ...formData, tags: e.target.value })} className="w-full bg-gray-700 p-3 rounded-lg" />
           {formData.type === 'Video' && (
             <input type="url" placeholder="YouTube or Vimeo Embed URL" value={formData.videoUrl} onChange={e => setFormData({ ...formData, videoUrl: e.target.value })} className="w-full bg-gray-700 p-3 rounded-lg" />
@@ -77,15 +154,20 @@ const AssetDetailModal: React.FC<{ asset: MediaAsset; onClose: () => void; }> = 
                     <iframe className="w-full h-full rounded-lg" src={asset.videoUrl} title={asset.name} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
                 </div>
             ) : asset.type === 'Photo' ? (
-                <div className="w-full aspect-video bg-gray-700 rounded-lg flex items-center justify-center text-gray-500 mb-4">
+                asset.imageDataUrl ? (
+                  <img src={asset.imageDataUrl} alt={asset.name} className="w-full max-h-[420px] object-cover rounded-lg mb-4" />
+                ) : (
+                  <div className="w-full aspect-video bg-gray-700 rounded-lg flex items-center justify-center text-gray-500 mb-4">
                     <ImageIcon className="h-24 w-24" />
                     <p className="ml-4">Image Preview Placeholder</p>
-                </div>
+                  </div>
+                )
             ) : null}
             <div className="space-y-2 text-sm">
                 <p><strong className="text-gray-400 w-24 inline-block">Type:</strong> {asset.type}</p>
-                <p><strong className="text-gray-400 w-24 inline-block">Location:</strong> {asset.location}</p>
-                <p><strong className="text-gray-400 w-24 inline-block">Path/URL:</strong> {asset.folderPath}</p>
+                <p><strong className="text-gray-400 w-24 inline-block">Location:</strong> {asset.location || 'Unspecified'}</p>
+                <p><strong className="text-gray-400 w-24 inline-block">Storage:</strong> {asset.storageMode || 'browser'} </p>
+                <p><strong className="text-gray-400 w-24 inline-block">Path/URL:</strong> {asset.folderPath || asset.assetPath || 'Not set'}</p>
                 <div>
                     <strong className="text-gray-400 w-24 inline-block align-top">Tags:</strong>
                     <div className="inline-flex flex-wrap gap-2 max-w-md">
@@ -127,17 +209,30 @@ export const MediaArchive: React.FC<MediaArchiveProps> = ({ activeBandId, media:
   }, [assets, searchQuery, typeFilter]);
   
   const handleSaveAsset = (assetData: Omit<MediaAsset, 'id' | 'bandId'> & { id?: string }) => {
+    const normalizedAsset = {
+      ...assetData,
+      storageMode: assetData.storageMode || (assetData.imageDataUrl ? 'browser' : 'remote'),
+      createdAt: assetData.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      assetPath: assetData.assetPath || assetData.folderPath || '',
+    };
+
     if (assetData.id) { // Editing existing asset
-      setAssets(prev => prev.map(a => a.id === assetData.id ? { ...a, ...assetData, bandId: a.bandId } as MediaAsset : a));
+      setAssets(prev => prev.map(a => a.id === assetData.id ? { ...a, ...normalizedAsset, bandId: a.bandId } as MediaAsset : a));
     } else { // Adding new asset
       const newAsset: MediaAsset = {
         id: Date.now().toString(),
-        name: assetData.name,
-        type: assetData.type,
-        location: assetData.location,
-        folderPath: assetData.folderPath,
-        tags: assetData.tags,
-        videoUrl: assetData.videoUrl,
+        name: normalizedAsset.name,
+        type: normalizedAsset.type,
+        location: normalizedAsset.location,
+        folderPath: normalizedAsset.folderPath,
+        tags: normalizedAsset.tags,
+        videoUrl: normalizedAsset.videoUrl,
+        imageDataUrl: normalizedAsset.imageDataUrl,
+        storageMode: normalizedAsset.storageMode,
+        assetPath: normalizedAsset.assetPath,
+        createdAt: normalizedAsset.createdAt,
+        updatedAt: normalizedAsset.updatedAt,
         bandId: activeBandId,
       };
       setAssets(prev => [...prev, newAsset]);

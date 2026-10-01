@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import useLocalStorage from '../hooks/useLocalStorage';
-import type { FanContact } from '../types';
+import type { FanContact, ContactConsentStatus } from '../types';
 import { initialFanContacts } from '../data/initialData';
 import { PlusIcon, TrashIcon, UploadCloudIcon, CodeIcon, UsersIcon, SearchIcon, CopyIcon, EditIcon, SaveIcon, SlashIcon } from './icons';
 import { Tip } from './Tip';
@@ -80,7 +80,13 @@ export const Fanbase: React.FC<FanbaseProps> = ({ activeBandId, fanContacts: all
     const fanContacts = useMemo(() => allFanContacts.filter(f => f.bandId === activeBandId), [allFanContacts, activeBandId]);
     
     const [showForm, setShowForm] = useState(false);
-    const [newContact, setNewContact] = useState<Omit<FanContact, 'id' | 'dateAdded' | 'bandId'>>({ name: '', email: '', origin: 'Manual' });
+    const [newContact, setNewContact] = useState<Omit<FanContact, 'id' | 'dateAdded' | 'bandId'>>({
+        name: '',
+        email: '',
+        origin: 'Manual',
+        consentStatus: 'pending_review',
+        consentDate: undefined,
+    });
     const [notification, setNotification] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
     const [showWebsiteModal, setShowWebsiteModal] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -98,10 +104,24 @@ export const Fanbase: React.FC<FanbaseProps> = ({ activeBandId, fanContacts: all
     const handleAddContact = (e: React.FormEvent) => {
         e.preventDefault();
         if (!newContact.email) return;
-        setFanContacts(prev => [{ id: `fan-${Date.now()}`, ...newContact, dateAdded: new Date().toISOString(), bandId: activeBandId }, ...prev]);
-        setNewContact({ name: '', email: '', origin: 'Manual' });
+        const trimmedEmail = newContact.email.trim();
+        const consentDate = newContact.consentStatus === 'double_opt_in' || newContact.consentStatus === 'explicit_opt_in'
+            ? new Date().toISOString()
+            : undefined;
+        const sanitizedContact: FanContact = {
+            id: `fan-${Date.now()}`,
+            name: newContact.name.trim(),
+            email: trimmedEmail,
+            origin: newContact.origin || 'Manual',
+            consentStatus: newContact.consentStatus || 'pending_review',
+            consentDate,
+            dateAdded: new Date().toISOString(),
+            bandId: activeBandId,
+        };
+        setFanContacts(prev => [sanitizedContact, ...prev]);
+        setNewContact({ name: '', email: '', origin: 'Manual', consentStatus: 'pending_review', consentDate: undefined });
         setShowForm(false);
-        showNotification('Fan added successfully.', 'success');
+        showNotification('Fan added successfully. Consent is still pending review for newsletter sends.', 'success');
     };
 
     const deleteContact = (id: string) => {
@@ -142,34 +162,52 @@ export const Fanbase: React.FC<FanbaseProps> = ({ activeBandId, fanContacts: all
                 const nameIndex = header.indexOf('name');
                 const originIndex = header.indexOf('origin');
 
-                const existingEmails = new Set(fanContacts.map(c => c.email));
+                const existingEmails = new Set(fanContacts.map(c => c.email.toLowerCase()));
                 let importedCount = 0;
                 let skippedCount = 0;
+                const consentIndex = header.indexOf('consentstatus');
+                const consentDateIndex = header.indexOf('consentdate');
                 
-                const newFans = lines.slice(1).map((line, i) => {
+                const newFans: FanContact[] = [];
+
+                for (const [i, line] of lines.slice(1).entries()) {
                     const values = line.split(',');
                     const email = values[emailIndex]?.trim().replace(/"/g, '');
 
-                    if (!email || existingEmails.has(email)) {
+                    if (!email || existingEmails.has(email.toLowerCase())) {
                         skippedCount++;
-                        return null;
+                        continue;
                     }
-                    
-                    importedCount++;
-                    existingEmails.add(email);
 
-                    return {
+                    const consentStatusValue = consentIndex > -1 ? values[consentIndex]?.trim().replace(/"/g, '') : '';
+                    const consentDateValue = consentDateIndex > -1 ? values[consentDateIndex]?.trim().replace(/"/g, '') : '';
+                    const normalizedConsent = consentStatusValue ? consentStatusValue.toLowerCase() : 'pending_review';
+                    const consentStatus: ContactConsentStatus = normalizedConsent.includes('double')
+                        ? 'double_opt_in'
+                        : normalizedConsent.includes('explicit') || normalizedConsent.includes('opt')
+                            ? 'explicit_opt_in'
+                            : normalizedConsent.includes('unsubscribe') || normalizedConsent.includes('reject') || normalizedConsent.includes('bounce')
+                                ? 'rejected'
+                                : 'pending_review';
+                    importedCount++;
+                    existingEmails.add(email.toLowerCase());
+
+                    const importedContact: FanContact = {
                         id: `imported-${Date.now()}-${i}`,
                         name: nameIndex > -1 ? values[nameIndex]?.trim().replace(/"/g, '') || '' : '',
                         email,
                         origin: originIndex > -1 ? values[originIndex]?.trim().replace(/"/g, '') || 'CSV Import' : 'CSV Import',
+                        consentStatus,
+                        consentDate: consentDateValue || (consentStatus === 'double_opt_in' || consentStatus === 'explicit_opt_in' ? new Date().toISOString() : undefined),
                         dateAdded: new Date().toISOString(),
                         bandId: activeBandId,
                     };
-                }).filter((c): c is FanContact => c !== null);
+
+                    newFans.push(importedContact);
+                }
 
                 setFanContacts(prev => [...prev, ...newFans]);
-                showNotification(`Successfully imported ${importedCount} fans. Skipped ${skippedCount} duplicates.`, 'success');
+                showNotification(`Successfully imported ${importedCount} fans. ${skippedCount} duplicates were skipped. Imported contacts remain in pending review until consent is confirmed for newsletter sends.`, 'success');
             } catch (error: any) {
                 showNotification(error.message || 'Failed to parse CSV.', 'error');
             } finally {
@@ -187,17 +225,18 @@ export const Fanbase: React.FC<FanbaseProps> = ({ activeBandId, fanContacts: all
                 return;
             }
             const websiteSubs = JSON.parse(websiteSubsRaw);
-            const existingEmails = new Set(fanContacts.map(c => c.email));
+            const existingEmails = new Set(fanContacts.map(c => c.email.toLowerCase()));
             let newCount = 0;
 
             const newFans: FanContact[] = websiteSubs.map((sub: any) => {
-                if(sub.email && !existingEmails.has(sub.email)) {
+                if(sub.email && !existingEmails.has(sub.email.toLowerCase())) {
                     newCount++;
                     return {
                         id: `web-${Date.now()}-${sub.email}`,
                         name: sub.name || '',
                         email: sub.email,
                         origin: 'Website Signup',
+                        consentStatus: 'pending_review',
                         dateAdded: sub.dateAdded || new Date().toISOString(),
                         bandId: activeBandId,
                     }
@@ -208,7 +247,7 @@ export const Fanbase: React.FC<FanbaseProps> = ({ activeBandId, fanContacts: all
             if (newFans.length > 0) {
                 setFanContacts(prev => [...prev, ...newFans]);
             }
-            showNotification(`Synced ${newCount} new subscribers from your website!`, 'success');
+            showNotification(`Synced ${newCount} new subscribers from your website. These are held in pending review until consent is confirmed for newsletter sends.`, 'success');
         } catch (error) {
             showNotification("Failed to sync from website. Data might be corrupted.", 'error');
             console.error("Website Sync Error:", error);
@@ -255,10 +294,16 @@ export const Fanbase: React.FC<FanbaseProps> = ({ activeBandId, fanContacts: all
             {showForm && (
                 <div className="bg-gray-800 p-6 rounded-xl mb-8 shadow-lg">
                     <form onSubmit={handleAddContact} className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <input type="text" placeholder="Full Name (optional)" value={newContact.name} onChange={e => setNewContact({...newContact, name: e.target.value})} className="bg-gray-700 p-3 rounded-lg" />
                             <input type="email" placeholder="Email Address" value={newContact.email} onChange={e => setNewContact({...newContact, email: e.target.value})} className="bg-gray-700 p-3 rounded-lg" required />
                             <input type="text" placeholder="Origin (e.g., Merch Table)" value={newContact.origin} onChange={e => setNewContact({...newContact, origin: e.target.value})} className="bg-gray-700 p-3 rounded-lg" required/>
+                            <select value={newContact.consentStatus || 'pending_review'} onChange={e => setNewContact({ ...newContact, consentStatus: e.target.value as any })} className="bg-gray-700 p-3 rounded-lg">
+                                <option value="pending_review">Consent: Pending review</option>
+                                <option value="explicit_opt_in">Consent: Explicit opt-in</option>
+                                <option value="double_opt_in">Consent: Double opt-in</option>
+                                <option value="rejected">Consent: Rejected</option>
+                            </select>
                         </div>
                         <button type="submit" className="w-full bg-spotify-green hover:bg-green-500 text-white font-bold py-3 rounded-lg">Save Fan</button>
                     </form>

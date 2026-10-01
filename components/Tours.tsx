@@ -5,6 +5,7 @@ import type { Tour, Show, Setlist, Venue } from '../types';
 import { PlusIcon, TrashIcon, WandIcon, CheckCircleIcon, PlusCircleIcon } from './icons';
 import { initialTours, initialSetlists, initialVenues } from '../data/initialData';
 import { findTourDatesForArtist, findVenueContactInfo } from '../services/aiService';
+import { Tip } from './Tip';
 
 type FoundShow = { date: string, city: string, venue: string };
 

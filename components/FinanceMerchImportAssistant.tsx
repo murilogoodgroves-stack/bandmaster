@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import type { MerchItem, MerchVariant, Transaction, User, MemberTransaction } from '../types';
 import { TransactionType, MemberTransactionType } from '../types';
 
+const productKeywords = ['shirt', 't-shirt', 'tee', 'vinyl', 'cd', 'poster', 'merch', 'hoodie', 'cap', 'sticker', 'mug', 'tape', 'bag', 'print'];
+
 export type ParsedMerchSuggestion = {
   name: string;
   type: string;
@@ -138,7 +140,7 @@ const inferMerchType = (name: string): string => {
   return 'Other';
 };
 
-export const parseCompactImport = (rawText: string, users: User[] = []): ParsedImportSummary => {
+export const parseCompactImport = (rawText: string, users: User[] = [], merchCatalog: string[] = []): ParsedImportSummary => {
   const lines = rawText
     .replace(/\r/g, '')
     .split(/\n|;|\./)
@@ -150,7 +152,11 @@ export const parseCompactImport = (rawText: string, users: User[] = []): ParsedI
   const memberTransactions: ParsedMemberTransactionSuggestion[] = [];
   let cashOnHand = 0;
 
-  const productKeywords = ['shirt', 't-shirt', 'tee', 'vinyl', 'cd', 'poster', 'merch', 'hoodie', 'cap', 'sticker', 'mug', 'tape', 'bag', 'print'];
+  const resolveMerchCatalogName = (text: string): string => {
+    const normalizedText = text.toLowerCase();
+    const match = merchCatalog.find((catalogName) => normalizedText.includes(catalogName.toLowerCase()));
+    return match || '';
+  };
 
   const resolveMemberId = (text: string): string | null => {
     const normalizedText = text.toLowerCase();
@@ -248,7 +254,8 @@ export const parseCompactImport = (rawText: string, users: User[] = []): ParsedI
     const quantityMatch = line.match(/(\d+)\s*[×x]\s*([A-Za-z][A-Za-z\s-]+?)/i);
 
     if (directMatch) {
-      const itemName = canonicalMerchName(directMatch[1].trim());
+      const catalogName = resolveMerchCatalogName(directMatch[1].trim());
+      const itemName = canonicalMerchName(catalogName || directMatch[1].trim());
       const priceCandidate = directMatch[2] || directMatch[3] || directMatch[4];
       const unitPrice = priceCandidate ? moneyFromText(priceCandidate) : mappedPrices[itemName] || merchPriceDefaults[itemName] || 0;
       const quantity = quantityMatch ? Number(quantityMatch[1]) : 0;
@@ -290,9 +297,9 @@ interface FinanceMerchImportAssistantProps {
   setMerch: React.Dispatch<React.SetStateAction<MerchItem[]>>;
   transactions: Transaction[];
   setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
-  memberTransactions: MemberTransaction[];
-  setMemberTransactions: React.Dispatch<React.SetStateAction<MemberTransaction[]>>;
-  users: User[];
+  memberTransactions?: MemberTransaction[];
+  setMemberTransactions?: React.Dispatch<React.SetStateAction<MemberTransaction[]>>;
+  users?: User[];
   cashOnHand: number;
   setCashOnHand: (value: number) => void;
 }
@@ -305,7 +312,7 @@ export const FinanceMerchImportAssistant: React.FC<FinanceMerchImportAssistantPr
   setTransactions,
   memberTransactions,
   setMemberTransactions,
-  users,
+  users = [],
   cashOnHand,
   setCashOnHand,
 }) => {
@@ -313,6 +320,7 @@ export const FinanceMerchImportAssistant: React.FC<FinanceMerchImportAssistantPr
   const [parsed, setParsed] = useState<ParsedImportSummary | null>(null);
   const [merchDraft, setMerchDraft] = useState<ParsedMerchSuggestion[]>([]);
   const [transactionsDraft, setTransactionsDraft] = useState<ParsedTransactionSuggestion[]>([]);
+  const merchCatalogNames = useMemo(() => merch.map((item) => item.name).filter(Boolean), [merch]);
 
   const parsedCount = useMemo(() => {
     if (!parsed) return 0;
@@ -320,7 +328,7 @@ export const FinanceMerchImportAssistant: React.FC<FinanceMerchImportAssistantPr
   }, [parsed]);
 
   const parseCurrentText = () => {
-    const next = parseCompactImport(importText, users);
+    const next = parseCompactImport(importText, users, merchCatalogNames);
     setParsed(next);
     setMerchDraft(next.merch);
     setTransactionsDraft(next.transactions);
@@ -403,7 +411,9 @@ export const FinanceMerchImportAssistant: React.FC<FinanceMerchImportAssistantPr
     } as MemberTransaction));
 
     setTransactions(prev => [...prev, ...newTransactions]);
-    setMemberTransactions(prev => [...prev, ...newMemberTransactions]);
+    if (setMemberTransactions) {
+      setMemberTransactions(prev => [...prev, ...newMemberTransactions]);
+    }
 
     if (parsed.cashOnHand > 0 || cashOnHand !== parsed.cashOnHand) {
       setCashOnHand(parsed.cashOnHand);
@@ -426,6 +436,12 @@ export const FinanceMerchImportAssistant: React.FC<FinanceMerchImportAssistantPr
       </div>
 
       <div className="space-y-4">
+        {merchCatalogNames.length === 0 && (
+          <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-amber-100">
+            Add the band’s actual merch items first so the extraction can match the real names, prices, and stock more accurately.
+          </div>
+        )}
+
         <textarea
           value={importText}
           onChange={(e) => setImportText(e.target.value)}
@@ -461,11 +477,15 @@ export const FinanceMerchImportAssistant: React.FC<FinanceMerchImportAssistantPr
         <div className="mt-6 space-y-6">
           <div className="rounded-lg border border-green-500/40 bg-green-500/5 p-4">
             <p className="text-sm text-green-200">Detected:</p>
-            <div className="flex gap-6 mt-2 text-sm text-gray-200">
+            <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-200">
               <span>{parsed.merch.length} item(s)</span>
               <span>{parsed.transactions.length} transaction(s)</span>
               <span>Cash on hand: {formatMoney(parsed.cashOnHand)}</span>
             </div>
+          </div>
+
+          <div className="rounded-lg border border-gray-700 bg-gray-900 p-3 text-xs text-gray-300">
+            <span className="font-semibold text-white">Edit fields before saving:</span> Item name, Type, Cost, Price, Stock; transaction description, Type, Amount, Date.
           </div>
 
           {merchDraft.length > 0 && (
@@ -474,39 +494,54 @@ export const FinanceMerchImportAssistant: React.FC<FinanceMerchImportAssistantPr
               <div className="space-y-3">
                 {merchDraft.map((item, index) => (
                   <div key={`${item.name}-${index}`} className="grid grid-cols-1 md:grid-cols-5 gap-3 bg-gray-900 rounded-lg p-3">
-                    <input
-                      value={item.name}
-                      onChange={(e) => updateMerchDraft(index, 'name', e.target.value)}
-                      className="bg-gray-800 rounded px-3 py-2"
-                      placeholder="Name"
-                    />
-                    <input
-                      value={item.type}
-                      onChange={(e) => updateMerchDraft(index, 'type', e.target.value)}
-                      className="bg-gray-800 rounded px-3 py-2"
-                      placeholder="Type"
-                    />
-                    <input
-                      type="number"
-                      value={item.cost}
-                      onChange={(e) => updateMerchDraft(index, 'cost', Number(e.target.value || 0))}
-                      className="bg-gray-800 rounded px-3 py-2"
-                      placeholder="Cost"
-                    />
-                    <input
-                      type="number"
-                      value={item.price}
-                      onChange={(e) => updateMerchDraft(index, 'price', Number(e.target.value || 0))}
-                      className="bg-gray-800 rounded px-3 py-2"
-                      placeholder="Price"
-                    />
-                    <input
-                      type="number"
-                      value={item.stock}
-                      onChange={(e) => updateMerchDraft(index, 'stock', Number(e.target.value || 0))}
-                      className="bg-gray-800 rounded px-3 py-2"
-                      placeholder="Stock"
-                    />
+                    <label className="text-xs text-gray-400 uppercase tracking-[0.2em]">
+                      Name
+                      <input
+                        value={item.name}
+                        onChange={(e) => updateMerchDraft(index, 'name', e.target.value)}
+                        className="mt-1 bg-gray-800 rounded px-3 py-2 w-full"
+                        placeholder="Name"
+                      />
+                    </label>
+                    <label className="text-xs text-gray-400 uppercase tracking-[0.2em]">
+                      Type
+                      <input
+                        value={item.type}
+                        onChange={(e) => updateMerchDraft(index, 'type', e.target.value)}
+                        className="mt-1 bg-gray-800 rounded px-3 py-2 w-full"
+                        placeholder="Type"
+                      />
+                    </label>
+                    <label className="text-xs text-gray-400 uppercase tracking-[0.2em]">
+                      Cost
+                      <input
+                        type="number"
+                        value={item.cost}
+                        onChange={(e) => updateMerchDraft(index, 'cost', Number(e.target.value || 0))}
+                        className="mt-1 bg-gray-800 rounded px-3 py-2 w-full"
+                        placeholder="Cost"
+                      />
+                    </label>
+                    <label className="text-xs text-gray-400 uppercase tracking-[0.2em]">
+                      Price
+                      <input
+                        type="number"
+                        value={item.price}
+                        onChange={(e) => updateMerchDraft(index, 'price', Number(e.target.value || 0))}
+                        className="mt-1 bg-gray-800 rounded px-3 py-2 w-full"
+                        placeholder="Price"
+                      />
+                    </label>
+                    <label className="text-xs text-gray-400 uppercase tracking-[0.2em]">
+                      Stock
+                      <input
+                        type="number"
+                        value={item.stock}
+                        onChange={(e) => updateMerchDraft(index, 'stock', Number(e.target.value || 0))}
+                        className="mt-1 bg-gray-800 rounded px-3 py-2 w-full"
+                        placeholder="Stock"
+                      />
+                    </label>
                   </div>
                 ))}
               </div>
@@ -519,31 +554,43 @@ export const FinanceMerchImportAssistant: React.FC<FinanceMerchImportAssistantPr
               <div className="space-y-3">
                 {transactionsDraft.map((tx, index) => (
                   <div key={`${tx.description}-${index}`} className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-gray-900 rounded-lg p-3">
-                    <input
-                      value={tx.description}
-                      onChange={(e) => updateTransactionDraft(index, 'description', e.target.value)}
-                      className="bg-gray-800 rounded px-3 py-2"
-                    />
-                    <select
-                      value={tx.type}
-                      onChange={(e) => updateTransactionDraft(index, 'type', e.target.value as TransactionType)}
-                      className="bg-gray-800 rounded px-3 py-2"
-                    >
-                      <option value={TransactionType.Income}>Income</option>
-                      <option value={TransactionType.Expense}>Expense</option>
-                    </select>
-                    <input
-                      type="number"
-                      value={tx.amount}
-                      onChange={(e) => updateTransactionDraft(index, 'amount', Number(e.target.value || 0))}
-                      className="bg-gray-800 rounded px-3 py-2"
-                    />
-                    <input
-                      type="date"
-                      value={tx.date}
-                      onChange={(e) => updateTransactionDraft(index, 'date', e.target.value)}
-                      className="bg-gray-800 rounded px-3 py-2"
-                    />
+                    <label className="text-xs text-gray-400 uppercase tracking-[0.2em]">
+                      Description
+                      <input
+                        value={tx.description}
+                        onChange={(e) => updateTransactionDraft(index, 'description', e.target.value)}
+                        className="mt-1 bg-gray-800 rounded px-3 py-2 w-full"
+                      />
+                    </label>
+                    <label className="text-xs text-gray-400 uppercase tracking-[0.2em]">
+                      Type
+                      <select
+                        value={tx.type}
+                        onChange={(e) => updateTransactionDraft(index, 'type', e.target.value as TransactionType)}
+                        className="mt-1 bg-gray-800 rounded px-3 py-2 w-full"
+                      >
+                        <option value={TransactionType.Income}>Income</option>
+                        <option value={TransactionType.Expense}>Expense</option>
+                      </select>
+                    </label>
+                    <label className="text-xs text-gray-400 uppercase tracking-[0.2em]">
+                      Amount
+                      <input
+                        type="number"
+                        value={tx.amount}
+                        onChange={(e) => updateTransactionDraft(index, 'amount', Number(e.target.value || 0))}
+                        className="mt-1 bg-gray-800 rounded px-3 py-2 w-full"
+                      />
+                    </label>
+                    <label className="text-xs text-gray-400 uppercase tracking-[0.2em]">
+                      Date
+                      <input
+                        type="date"
+                        value={tx.date}
+                        onChange={(e) => updateTransactionDraft(index, 'date', e.target.value)}
+                        className="mt-1 bg-gray-800 rounded px-3 py-2 w-full"
+                      />
+                    </label>
                   </div>
                 ))}
               </div>

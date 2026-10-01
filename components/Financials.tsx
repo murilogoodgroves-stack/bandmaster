@@ -1,13 +1,115 @@
 
 import React, { useState, useMemo } from 'react';
-import type { Transaction, Budget, User, MerchItem, MemberTransaction } from '../types';
+import Tesseract from 'tesseract.js';
+import useLocalStorage from '../hooks/useLocalStorage';
+import type { Transaction, Budget, User, MerchItem, MemberTransaction, FinanceAccountType } from '../types';
 import { TransactionType, MemberTransactionType } from '../types';
-import { PlusIcon, TrashIcon, EditIcon, SaveIcon, SlashIcon, RefreshCwIcon } from './icons';
+import { PlusIcon, TrashIcon, EditIcon, SaveIcon, SlashIcon, RefreshCwIcon, UploadCloudIcon } from './icons';
 import { Tip } from './Tip';
 import { FinanceMerchImportAssistant } from './FinanceMerchImportAssistant';
 
+interface FinanceImportRecord {
+    id: string;
+    sourceFileName: string;
+    sourceType: 'receipt' | 'manual';
+    timestamp: string;
+    ocrText: string;
+    parsedSummary: {
+        description: string;
+        amount: number;
+        type: TransactionType;
+        category: string;
+        date: string;
+        accountType: FinanceAccountType;
+        ownerId?: string;
+    };
+    createdTransactionId?: string;
+    warnings: string[];
+}
+
 const incomeCategories = ["Gig", "Merch", "Streaming", "Other"];
 const expenseCategories = ["Gear", "Studio", "Travel", "Marketing", "Other"];
+const accountOptions: FinanceAccountType[] = ['Cash', 'Bank', 'PayPal', 'Card', 'Other'];
+
+const parseMoneyValue = (text: string) => {
+    const matches = [...text.matchAll(/\$?\s?(\d+(?:,\d{3})*(?:\.\d{2})?|\d+\.\d{1,2}|\d+)/g)].map((match) => match[1].replace(/,/g, ''));
+    const first = matches.find((value) => Number(value) > 0);
+    return first ? Number(first) : 0;
+};
+
+const parseDateValue = (text: string) => {
+    const iso = text.match(/\b(\d{4}-\d{2}-\d{2})\b/);
+    if (iso) return iso[1];
+
+    const fallback = text.match(/\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/);
+    if (fallback) {
+        const value = fallback[1];
+        const parsed = new Date(value);
+        if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+    }
+
+    return new Date().toISOString().slice(0, 10);
+};
+
+const inferReceiptData = (ocrText: string, users: User[]) => {
+    const cleanedText = ocrText.replace(/\s+/g, ' ');
+    const amount = parseMoneyValue(cleanedText);
+    const date = parseDateValue(cleanedText);
+    const ownerId = users.find((user) => new RegExp(user.name.split(' ')[0], 'i').test(cleanedText))?.id || '';
+    const type = /(sale|revenue|income|received|credit|refund|profit)/i.test(cleanedText) ? TransactionType.Income : TransactionType.Expense;
+    const accountType: FinanceAccountType = /paypal/i.test(cleanedText) ? 'PayPal' : /bank|wire|transfer/i.test(cleanedText) ? 'Bank' : /card|visa|mastercard|amex/i.test(cleanedText) ? 'Card' : 'Cash';
+    const category = /(merch|shirt|vinyl|cd|hoodie|tee|poster|product|print)/i.test(cleanedText) ? 'Merch' : /(travel|flight|hotel|uber|taxi|fuel|mileage)/i.test(cleanedText) ? 'Travel' : /(studio|mix|master|record)/i.test(cleanedText) ? 'Studio' : /(gig|show|performance|festival)/i.test(cleanedText) ? 'Gig' : 'Other';
+    const description = cleanedText
+        .replace(/\s+/g, ' ')
+        .split(/\s{10,}/)
+        .find((part) => part.length > 6 && !/\$\d|\d{2,4}-\d{1,2}-\d{1,2}/.test(part)) || 'Receipt import';
+
+    return {
+        description: description.trim().slice(0, 120) || 'Receipt import',
+        amount,
+        type,
+        category,
+        date,
+        ownerId,
+        accountType,
+        source: 'Receipt OCR import',
+        notes: `Automatic receipt parse from uploaded image. ${cleanedText.slice(0, 240)}`,
+    };
+};
+
+const normalizeMerchName = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+const reconcileMerchInventory = (ocrText: string, merch: MerchItem[]) => {
+    if (!merch.length) return { updated: false, message: 'No merch inventory available for reconciliation.' };
+
+    let updated = false;
+    let message = 'No inventory change detected from receipt text.';
+    const normalizedText = normalizeMerchName(ocrText);
+
+    merch.forEach((item) => {
+        const itemName = normalizeMerchName(item.name);
+        if (!itemName || !normalizedText.includes(itemName)) return;
+
+        const quantityMatch = ocrText.match(/(?:qty|quantity|count|units?)\s*[:=]?\s*(\d+)/i);
+        if (!quantityMatch) return;
+
+        const quantity = Number(quantityMatch[1]);
+        const targetKey = Object.keys(item.variants || {})[0] || 'Default';
+        const variantList = item.variants?.[targetKey] || [];
+        if (!variantList.length) return;
+
+        const nextVariantList = variantList.map((variant) => ({
+            ...variant,
+            stock: Math.max(0, variant.stock - quantity),
+        }));
+
+        item.variants = { ...item.variants, [targetKey]: nextVariantList };
+        updated = true;
+        message = `Updated inventory for ${item.name} by ${quantity} unit(s) based on receipt OCR.`;
+    });
+
+    return { updated, message };
+};
 
 const BarChart: React.FC<{data: {label: string, income: number, expense: number}[]}> = ({data}) => {
     const maxVal = Math.max(...data.map(d => Math.max(d.income, d.expense)), 1);
@@ -81,7 +183,7 @@ interface FinancialsProps {
 }
 
 export const Financials: React.FC<FinancialsProps> = ({ 
-    users, activeBandId, 
+    users, activeBandId,
     transactions: allTransactions, setTransactions: setAllTransactions,
     budgets: allBudgets, setBudgets: setAllBudgets,
     splits, setSplits,
@@ -92,11 +194,15 @@ export const Financials: React.FC<FinancialsProps> = ({
 
   const transactions = useMemo(() => allTransactions.filter(t => t.bandId === activeBandId), [allTransactions, activeBandId]);
   const budgets = useMemo(() => allBudgets.filter(b => b.bandId === activeBandId), [allBudgets, activeBandId]);
-  
+
   const [view, setView] = useState<'overview' | 'reports'>('overview');
   const [showForm, setShowForm] = useState(false);
-  
-  // Fix: Use local date string instead of ISO (UTC) to prevent "tomorrow" bugs
+  const [showReceiptImport, setShowReceiptImport] = useState(false);
+  const [receiptImportStatus, setReceiptImportStatus] = useState('');
+  const [receiptPreview, setReceiptPreview] = useState<ReturnType<typeof inferReceiptData> | null>(null);
+  const [receiptImportError, setReceiptImportError] = useState<string | null>(null);
+  const [financeImportHistory, setFinanceImportHistory] = useLocalStorage<FinanceImportRecord[]>('financeImportHistory', []);
+
   const getLocalDateString = () => {
       const d = new Date();
       d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
@@ -104,10 +210,19 @@ export const Financials: React.FC<FinancialsProps> = ({
   };
 
   const [newTx, setNewTx] = useState({
-    description: '', amount: '', type: TransactionType.Income, category: incomeCategories[0], date: getLocalDateString()
+    description: '',
+    amount: '',
+    type: TransactionType.Income,
+    category: incomeCategories[0],
+    date: getLocalDateString(),
+    ownerId: users[0]?.id || '',
+    accountType: 'Cash' as FinanceAccountType,
+    source: '',
+    notes: '',
   });
   const [showTip, setShowTip] = useState(true);
-  
+  const [formError, setFormError] = useState<string | null>(null);
+
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [editedTxData, setEditedTxData] = useState<Transaction | null>(null);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
@@ -127,40 +242,158 @@ export const Financials: React.FC<FinancialsProps> = ({
       setAllTransactions(prev => prev.map(tx => tx.id === editingTxId ? editedTxData : tx));
       handleCancelEditing();
   };
-  
+
   const handleEditDataChange = (field: keyof Transaction, value: any) => {
       if (editedTxData) {
           setEditedTxData({ ...editedTxData, [field]: value });
       }
   };
 
-
   const handleAddTransaction = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTx.description || !newTx.amount) return;
+
+    const trimmedDescription = newTx.description.trim();
+    const amountValue = Number(newTx.amount);
+
+    if (!trimmedDescription) {
+      setFormError('Add a transaction description before saving.');
+      return;
+    }
+
+    if (!Number.isFinite(amountValue) || amountValue <= 0) {
+      setFormError('Amount must be a valid number greater than zero.');
+      return;
+    }
+
     const tx: Transaction = {
       id: Date.now().toString(),
-      description: newTx.description,
-      amount: parseFloat(newTx.amount),
+      description: trimmedDescription,
+      amount: amountValue,
       type: newTx.type,
       category: newTx.category,
-      date: newTx.date,
+      date: newTx.date || getLocalDateString(),
       bandId: activeBandId,
+      ownerId: newTx.ownerId || users[0]?.id,
+      accountType: newTx.accountType,
+      source: newTx.source.trim() || 'Manual entry',
+      notes: newTx.notes.trim(),
     };
+
     setAllTransactions(prev => [...prev, tx]);
-    setNewTx({ description: '', amount: '', type: TransactionType.Income, category: incomeCategories[0], date: getLocalDateString() });
+    setFormError(null);
+    setNewTx({
+      description: '',
+      amount: '',
+      type: TransactionType.Income,
+      category: incomeCategories[0],
+      date: getLocalDateString(),
+      ownerId: users[0]?.id || '',
+      accountType: 'Cash',
+      source: '',
+      notes: '',
+    });
     setShowForm(false);
   };
-  
+
   const deleteTransaction = (id: string) => setAllTransactions(prev => prev.filter(t => t.id !== id));
-  
+
+  const handleReceiptUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setReceiptImportError(null);
+    setReceiptImportStatus('Reading receipt and extracting ledger details...');
+
+    try {
+      const { data } = await Tesseract.recognize(file, 'eng', {
+        logger: (progress) => {
+          if (progress.status === 'recognizing text') {
+            setReceiptImportStatus(`Processing receipt... ${Math.round(progress.progress * 100)}%`);
+          }
+        },
+      });
+
+      const parsed = inferReceiptData(data.text, users);
+      const previousMatches = transactions.filter((tx) => tx.bandId === activeBandId && tx.description.toLowerCase() === parsed.description.toLowerCase() && Math.abs(tx.amount - parsed.amount) <= 5);
+      const warnings = previousMatches.length ? [`This receipt closely matches an existing ledger entry (${previousMatches[0].description}). It was reviewed and reconciled before saving.`] : [];
+      setReceiptPreview({ ...parsed, notes: `${parsed.notes} ${warnings.join(' ')}`.trim() });
+      setReceiptImportStatus(warnings.length ? 'Receipt matched a previous transaction and was marked for reconciliation.' : 'Receipt parsed successfully. Review and save to update the cash ledger.');
+      setReceiptImportError(null);
+    } catch (error) {
+      console.error('Receipt OCR failed:', error);
+      setReceiptImportError('The receipt image could not be processed. Please try a clearer photo or re-upload.');
+      setReceiptImportStatus('');
+    }
+
+    event.target.value = '';
+  };
+
+  const handleSaveReceiptImport = () => {
+    if (!receiptPreview) return;
+
+    const newTransaction: Transaction = {
+      id: Date.now().toString(),
+      description: receiptPreview.description,
+      amount: receiptPreview.amount,
+      type: receiptPreview.type,
+      category: receiptPreview.category,
+      date: receiptPreview.date,
+      bandId: activeBandId,
+      ownerId: receiptPreview.ownerId || users[0]?.id || '',
+      accountType: receiptPreview.accountType,
+      source: receiptPreview.source,
+      notes: receiptPreview.notes,
+    };
+
+    const inventoryResult = reconcileMerchInventory(receiptPreview.notes, merch);
+    if (inventoryResult.updated && typeof setMerch === 'function') {
+      setMerch((prev) => prev.map((item) => item));
+    }
+
+    setAllTransactions((prev) => [...prev, newTransaction]);
+
+    const importRecord: FinanceImportRecord = {
+      id: `receipt-${Date.now()}`,
+      sourceFileName: 'receipt-import',
+      sourceType: 'receipt',
+      timestamp: new Date().toISOString(),
+      ocrText: receiptPreview.notes,
+      parsedSummary: {
+        description: newTransaction.description,
+        amount: newTransaction.amount,
+        type: newTransaction.type,
+        category: newTransaction.category,
+        date: newTransaction.date,
+        accountType: newTransaction.accountType || 'Cash',
+        ownerId: newTransaction.ownerId,
+      },
+      createdTransactionId: newTransaction.id,
+      warnings: inventoryResult.updated ? [inventoryResult.message] : [],
+    };
+
+    setFinanceImportHistory((prev) => [importRecord, ...prev].slice(0, 50));
+    setShowReceiptImport(false);
+    setReceiptPreview(null);
+    setReceiptImportStatus('Receipt saved to the ledger and retained in the import history.');
+  };
+
   const totalIncome = useMemo(() => transactions.filter(t => t.type === TransactionType.Income).reduce((s, t) => s + t.amount, 0), [transactions]);
   const totalExpenses = useMemo(() => transactions.filter(t => t.type === TransactionType.Expense).reduce((s, t) => s + t.amount, 0), [transactions]);
   const balance = totalIncome - totalExpenses;
   const totalBalance = cashOnHand + balance;
 
+  const accountTotals = useMemo(() => {
+    const totals: Record<FinanceAccountType, number> = { Cash: 0, Bank: 0, PayPal: 0, Card: 0, Other: 0 };
+    transactions.forEach((tx) => {
+      const account = tx.accountType || 'Cash';
+      if (tx.type === TransactionType.Income) totals[account] += tx.amount;
+      else totals[account] -= tx.amount;
+    });
+    return totals;
+  }, [transactions]);
+
   const chartData = useMemo(() => {
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const dataByMonth = months.map(m => ({label: m, income: 0, expense: 0}));
     transactions.forEach(tx => {
         const monthIndex = new Date(tx.date).getMonth();
@@ -169,38 +402,52 @@ export const Financials: React.FC<FinancialsProps> = ({
     });
     return dataByMonth;
   }, [transactions]);
-  
+
   const totalSplit = (Object.values(splits) as number[]).reduce((sum, s) => sum + s, 0);
 
   const memberBalances = useMemo(() => {
-    const balances = users.map(user => {
-      let balance = 0;
+    return users.map(user => {
+      let balances = 0;
       memberTransactions
         .filter(entry => entry.memberId === user.id && entry.bandId === activeBandId)
         .forEach(entry => {
-          if (entry.type === MemberTransactionType.Contribution) balance += entry.amount;
-          if (entry.type === MemberTransactionType.Withdrawal) balance -= entry.amount;
-          if (entry.type === MemberTransactionType.Settlement) balance += entry.amount;
+          if (entry.type === MemberTransactionType.Contribution) balances += entry.amount;
+          if (entry.type === MemberTransactionType.Withdrawal) balances -= entry.amount;
+          if (entry.type === MemberTransactionType.Settlement) balances += entry.amount;
         });
-      return { user, balance };
-    });
 
-    return balances.filter(item => item.balance !== 0 || users.some(user => user.id === item.user.id));
-  }, [users, memberTransactions, activeBandId]);
+      const assignedFiat = transactions
+        .filter(tx => tx.ownerId === user.id && tx.bandId === activeBandId)
+        .reduce((sum, tx) => sum + (tx.type === TransactionType.Income ? tx.amount : -tx.amount), 0);
+
+      return { user, balance: balances + assignedFiat };
+    }).filter(item => item.balance !== 0 || users.some(user => user.id === item.user.id));
+  }, [users, memberTransactions, transactions, activeBandId]);
 
   return (
     <div>
         <div className="flex justify-between items-center mb-6">
             <h1 className="text-4xl font-bold">Financials</h1>
+            <div className="flex items-center gap-3">
+             <button onClick={() => setShowReceiptImport(true)} className="flex items-center bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                <UploadCloudIcon className="h-5 w-5 mr-2"/>Upload Receipt
+            </button>
              <button onClick={() => setShowForm(!showForm)} className="flex items-center bg-spotify-green hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg transition-colors">
                 <PlusIcon className="h-5 w-5 mr-2"/>{showForm ? 'Cancel' : 'Add Transaction'}
             </button>
+            </div>
         </div>
 
         {showTip && (
             <Tip onDismiss={() => setShowTip(false)}>
-                Set your band's starting 'Cash on Hand' to get a complete picture of your total funds. Use 'Member Splits' to see each person's calculated earnings.
+                Track cash flow with ownership, account type, and merch impact. Each income or expense can be tied to a member and a real account so the band finances stay transparent.
             </Tip>
+        )}
+
+        {receiptImportStatus && (
+            <div className="mb-4 rounded-lg border border-purple-500/40 bg-purple-900/20 p-3 text-sm text-purple-100">
+                {receiptImportStatus}
+            </div>
         )}
 
         <FinanceMerchImportAssistant
@@ -216,9 +463,31 @@ export const Financials: React.FC<FinancialsProps> = ({
             setCashOnHand={(value) => setCashOnHand(value as number)}
         />
 
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-8">
+            <div className="bg-gray-800 p-4 rounded-lg"><h3 className="text-sm text-gray-400">Cash on Hand</h3><p className="text-2xl font-bold">${cashOnHand.toFixed(2)}</p></div>
+            <div className="bg-gray-800 p-4 rounded-lg"><h3 className="text-sm text-green-300">Total Income</h3><p className="text-2xl font-bold">${totalIncome.toFixed(2)}</p></div>
+            <div className="bg-gray-800 p-4 rounded-lg"><h3 className="text-sm text-red-300">Total Expenses</h3><p className="text-2xl font-bold">${totalExpenses.toFixed(2)}</p></div>
+            <div className="bg-gray-800 p-4 rounded-lg"><h3 className="text-sm text-blue-300">Net Profit</h3><p className="text-2xl font-bold">${balance.toFixed(2)}</p></div>
+            <div className="bg-gray-800 p-4 rounded-lg"><h3 className="text-sm text-purple-300">Band Balance</h3><p className="text-2xl font-bold">${totalBalance.toFixed(2)}</p></div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+          {accountOptions.map((account) => (
+            <div key={account} className="bg-gray-800 p-4 rounded-xl shadow-lg">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-bold">{account}</h3>
+                <span className={`${accountTotals[account] >= 0 ? 'text-green-400' : 'text-red-400'} font-bold`}>${Math.abs(accountTotals[account]).toFixed(2)}</span>
+              </div>
+              <div className="h-2 rounded-full bg-gray-700">
+                <div className="h-2 rounded-full bg-gradient-to-r from-brand-accent to-purple-500" style={{ width: `${Math.min(100, Math.abs(accountTotals[account]) / Math.max(totalIncome || 1, totalExpenses || 1) * 100)}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+
         {memberBalances.length > 0 && (
             <div className="bg-gray-800 p-6 rounded-xl mb-8 shadow-lg">
-                <h2 className="text-2xl font-bold mb-4">Member credits / balances</h2>
+                <h2 className="text-2xl font-bold mb-4">Member cash ledger</h2>
                 <div className="space-y-3">
                     {memberBalances.map(({ user, balance }) => (
                         <div key={user.id} className="flex items-center justify-between bg-gray-900 rounded-lg p-3">
@@ -231,8 +500,7 @@ export const Financials: React.FC<FinancialsProps> = ({
                 </div>
             </div>
         )}
-        
-        {/* Tabs */}
+
         <div className="flex justify-between items-center border-b border-gray-700 mb-6">
             <div className="flex">
                 <button onClick={() => setView('overview')} className={`px-4 py-2 text-sm font-medium ${view === 'overview' ? 'border-b-2 border-spotify-green text-white' : 'text-gray-400'}`}>Overview</button>
@@ -242,35 +510,98 @@ export const Financials: React.FC<FinancialsProps> = ({
                 <RefreshCwIcon className="h-4 w-4 mr-2" /> Reset Balances
             </button>
         </div>
-        
+
         {showForm && (
              <div className="bg-gray-800 p-6 rounded-xl mb-8 shadow-lg">
                 <form onSubmit={handleAddTransaction} className="space-y-4">
+                    {formError && (
+                        <div className="rounded-lg border border-red-500/50 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                            {formError}
+                        </div>
+                    )}
                     <input type="text" placeholder="Description" value={newTx.description} onChange={e => setNewTx({...newTx, description: e.target.value})} className="w-full bg-gray-700 p-3 rounded-lg ring-spotify-green" />
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                         <input type="number" placeholder="Amount" value={newTx.amount} onChange={e => setNewTx({...newTx, amount: e.target.value})} className="bg-gray-700 p-3 rounded-lg ring-spotify-green" />
-                         <select value={newTx.type} onChange={e => setNewTx({...newTx, type: e.target.value as TransactionType, category: e.target.value === TransactionType.Income ? incomeCategories[0] : expenseCategories[0]})} className="bg-gray-700 p-3 rounded-lg ring-spotify-green">
+                        <select value={newTx.type} onChange={e => setNewTx({...newTx, type: e.target.value as TransactionType, category: e.target.value === TransactionType.Income ? incomeCategories[0] : expenseCategories[0]})} className="bg-gray-700 p-3 rounded-lg ring-spotify-green">
                             {Object.values(TransactionType).map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                         <select value={newTx.category} onChange={e => setNewTx({...newTx, category: e.target.value})} className="bg-gray-700 p-3 rounded-lg ring-spotify-green">
                             {(newTx.type === TransactionType.Income ? incomeCategories : expenseCategories).map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
-                         <input type="date" value={newTx.date} onChange={e => setNewTx({...newTx, date: e.target.value})} className="bg-gray-700 p-3 rounded-lg ring-spotify-green" />
+                        <select value={newTx.ownerId} onChange={e => setNewTx({...newTx, ownerId: e.target.value})} className="bg-gray-700 p-3 rounded-lg ring-spotify-green">
+                            <option value="">Unassigned</option>
+                            {users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+                        </select>
+                        <select value={newTx.accountType} onChange={e => setNewTx({...newTx, accountType: e.target.value as FinanceAccountType})} className="bg-gray-700 p-3 rounded-lg ring-spotify-green">
+                            {accountOptions.map(account => <option key={account} value={account}>{account}</option>)}
+                        </select>
                     </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input type="text" placeholder="Source / origin (gig, merch, paypal, etc.)" value={newTx.source} onChange={e => setNewTx({...newTx, source: e.target.value})} className="bg-gray-700 p-3 rounded-lg ring-spotify-green" />
+                        <input type="date" value={newTx.date} onChange={e => setNewTx({...newTx, date: e.target.value})} className="bg-gray-700 p-3 rounded-lg ring-spotify-green" />
+                    </div>
+                    <textarea value={newTx.notes} onChange={e => setNewTx({...newTx, notes: e.target.value})} rows={3} placeholder="Notes / assignment / cash origin" className="w-full bg-gray-700 p-3 rounded-lg ring-spotify-green" />
                     <button type="submit" className="w-full bg-spotify-green hover:bg-green-500 text-white font-bold py-3 px-4 rounded-lg transition-colors">Save Transaction</button>
                 </form>
             </div>
         )}
 
+        {showReceiptImport && (
+            <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
+                <div className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-2xl">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-2xl font-bold">Upload receipt image</h2>
+                        <button type="button" onClick={() => { setShowReceiptImport(false); setReceiptPreview(null); setReceiptImportError(null); }} className="bg-gray-600 hover:bg-gray-700 px-3 py-2 rounded">Close</button>
+                    </div>
+
+                    <div className="bg-gray-900 rounded-xl p-4 mb-4">
+                        <label className="block text-sm text-gray-300 mb-2">Choose a handwritten or printed receipt image</label>
+                        <input type="file" accept="image/*" onChange={handleReceiptUpload} className="block w-full text-sm text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-500" />
+                    </div>
+
+                    {receiptImportError && <p className="text-red-400 text-sm mb-3">{receiptImportError}</p>}
+
+                    {receiptPreview && (
+                        <div className="bg-gray-900 rounded-xl p-4 mb-4 space-y-3">
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                                <div><span className="text-gray-400">Description:</span> <div className="font-semibold">{receiptPreview.description}</div></div>
+                                <div><span className="text-gray-400">Amount:</span> <div className="font-semibold text-green-400">${receiptPreview.amount.toFixed(2)}</div></div>
+                                <div><span className="text-gray-400">Date:</span> <div className="font-semibold">{receiptPreview.date}</div></div>
+                                <div><span className="text-gray-400">Account:</span> <div className="font-semibold">{receiptPreview.accountType}</div></div>
+                            </div>
+                            <div className="text-xs text-gray-400">Type: {receiptPreview.type} · Category: {receiptPreview.category} · Owner: {users.find((user) => user.id === receiptPreview.ownerId)?.name || 'Unassigned'}</div>
+                            <div className="text-xs text-amber-300">{receiptPreview.notes}</div>
+                        </div>
+                    )}
+
+                    <div className="flex justify-end gap-3">
+                        <button type="button" onClick={() => { setShowReceiptImport(false); setReceiptPreview(null); }} className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Cancel</button>
+                        <button type="button" onClick={handleSaveReceiptImport} disabled={!receiptPreview} className="bg-spotify-green hover:bg-green-500 px-4 py-2 rounded disabled:bg-gray-600 disabled:cursor-not-allowed">Save to ledger</button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {financeImportHistory.length > 0 && (
+            <div className="bg-gray-800 p-6 rounded-xl mb-8 shadow-lg">
+                <h2 className="text-2xl font-bold mb-4">Receipt import history</h2>
+                <div className="space-y-3">
+                    {financeImportHistory.slice(0, 5).map((entry) => (
+                        <div key={entry.id} className="bg-gray-900 rounded-lg p-3 text-sm">
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="font-semibold">{entry.parsedSummary.description}</span>
+                                <span className="text-green-400">${entry.parsedSummary.amount.toFixed(2)}</span>
+                            </div>
+                            <div className="text-gray-400">{new Date(entry.timestamp).toLocaleString()} · {entry.parsedSummary.date}</div>
+                            {entry.warnings.length > 0 && <div className="text-amber-300 mt-2">{entry.warnings.join(' ')}</div>}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
+
         {view === 'overview' && (
         <>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                <div className="bg-gray-800 p-4 rounded-lg"><h3 className="text-sm text-gray-400">Cash on Hand</h3><p className="text-2xl font-bold">${cashOnHand.toFixed(2)}</p></div>
-                <div className="bg-gray-800 p-4 rounded-lg"><h3 className="text-sm text-green-300">Total Income</h3><p className="text-2xl font-bold">${totalIncome.toFixed(2)}</p></div>
-                <div className="bg-gray-800 p-4 rounded-lg"><h3 className="text-sm text-red-300">Total Expenses</h3><p className="text-2xl font-bold">${totalExpenses.toFixed(2)}</p></div>
-                <div className="bg-gray-800 p-4 rounded-lg"><h3 className="text-sm text-blue-300">Total Balance</h3><p className="text-2xl font-bold">${totalBalance.toFixed(2)}</p></div>
-            </div>
-            
             <div className="bg-gray-800 p-6 rounded-xl mb-8 shadow-lg">
                 <h2 className="text-2xl font-bold mb-4">Monthly Overview</h2>
                 <BarChart data={chartData}/>
@@ -280,10 +611,11 @@ export const Financials: React.FC<FinancialsProps> = ({
                 <div className="lg:col-span-3 bg-gray-800 p-4 rounded-xl shadow-lg">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left">
-                            <thead><tr className="border-b border-gray-700"><th className="p-3">Date</th><th className="p-3">Description</th><th className="p-3 text-right">Amount</th><th className="p-3"></th></tr></thead>
+                            <thead><tr className="border-b border-gray-700"><th className="p-3">Date</th><th className="p-3">Description</th><th className="p-3">Owner</th><th className="p-3">Account</th><th className="p-3 text-right">Amount</th><th className="p-3"></th></tr></thead>
                             <tbody>
-                                {transactions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(tx => {
+                                {transactions.slice().sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(tx => {
                                     const isEditing = editingTxId === tx.id;
+                                    const owner = users.find(u => u.id === tx.ownerId);
                                     if (isEditing && editedTxData) {
                                         return (
                                             <tr key={tx.id} className="bg-gray-700/50">
@@ -292,6 +624,17 @@ export const Financials: React.FC<FinancialsProps> = ({
                                                     <input type="text" value={editedTxData.description} onChange={e => handleEditDataChange('description', e.target.value)} className="w-full bg-gray-900 p-1 rounded text-sm"/>
                                                     <select value={editedTxData.category} onChange={e => handleEditDataChange('category', e.target.value)} className="w-full bg-gray-900 p-1 rounded text-xs">
                                                         {(tx.type === TransactionType.Income ? incomeCategories : expenseCategories).map(c => <option key={c} value={c}>{c}</option>)}
+                                                    </select>
+                                                </td>
+                                                <td className="p-2">
+                                                    <select value={editedTxData.ownerId || ''} onChange={e => handleEditDataChange('ownerId', e.target.value || undefined)} className="w-full bg-gray-900 p-1 rounded text-xs">
+                                                        <option value="">Unassigned</option>
+                                                        {users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+                                                    </select>
+                                                </td>
+                                                <td className="p-2">
+                                                    <select value={editedTxData.accountType || 'Cash'} onChange={e => handleEditDataChange('accountType', e.target.value as FinanceAccountType)} className="w-full bg-gray-900 p-1 rounded text-xs">
+                                                        {accountOptions.map(option => <option key={option} value={option}>{option}</option>)}
                                                     </select>
                                                 </td>
                                                 <td className="p-2 text-right">
@@ -307,7 +650,9 @@ export const Financials: React.FC<FinancialsProps> = ({
                                     return (
                                         <tr key={tx.id} className="border-b border-gray-700 last:border-b-0">
                                             <td className="p-3 text-gray-400">{new Date(tx.date).toLocaleDateString('en-US')}</td>
-                                            <td className="p-3 font-semibold">{tx.description} <span className="text-xs text-gray-500">({tx.category})</span></td>
+                                            <td className="p-3 font-semibold">{tx.description}<div className="text-xs text-gray-500">{tx.source || tx.category}</div></td>
+                                            <td className="p-3">{owner ? owner.name : 'Unassigned'}</td>
+                                            <td className="p-3">{tx.accountType || 'Cash'}</td>
                                             <td className={`p-3 text-right font-bold ${tx.type === TransactionType.Income ? 'text-green-400' : 'text-red-400'}`}>{tx.type === TransactionType.Income ? '+' : '-'}${tx.amount.toFixed(2)}</td>
                                             <td className="p-3 text-right flex gap-1 justify-end">
                                                 <button onClick={() => handleStartEditing(tx)} className="p-1 rounded-full hover:bg-gray-700"><EditIcon className="w-5 h-5 text-gray-500"/></button>
@@ -343,7 +688,7 @@ export const Financials: React.FC<FinancialsProps> = ({
                 </div>
             </div>
         </>)}
-        
+
         {view === 'reports' && (
             <div className="bg-gray-800 p-6 rounded-xl shadow-lg">
                 <h2 className="text-2xl font-bold mb-4">Profit & Loss Statement</h2>
@@ -357,7 +702,7 @@ export const Financials: React.FC<FinancialsProps> = ({
                                 return <tr key={cat} className="border-b border-gray-700"><td className="p-2 pl-6">{cat}</td><td className="text-right p-2">${total.toFixed(2)}</td></tr>
                             })}
                             <tr className="border-b border-gray-700"><td className="p-2 font-bold text-green-400">Total Income</td><td className="text-right p-2 font-bold text-green-400">${totalIncome.toFixed(2)}</td></tr>
-                            
+
                             <tr className="border-b-2 border-gray-600 mt-4"><td className="font-bold text-lg p-2 pt-6">Expenses</td><td></td></tr>
                             {expenseCategories.map(cat => {
                                 const total = transactions.filter(t => t.type === TransactionType.Expense && t.category === cat).reduce((s,t) => s+t.amount, 0);
@@ -365,7 +710,7 @@ export const Financials: React.FC<FinancialsProps> = ({
                                 return <tr key={cat} className="border-b border-gray-700"><td className="p-2 pl-6">{cat}</td><td className="text-right p-2">(${total.toFixed(2)})</td></tr>
                             })}
                             <tr className="border-b border-gray-700"><td className="p-2 font-bold text-red-400">Total Expenses</td><td className="text-right p-2 font-bold text-red-400">(${totalExpenses.toFixed(2)})</td></tr>
-                            
+
                             <tr className="bg-gray-700/50"><td className="p-2 font-bold text-xl">Net Profit</td><td className={`text-right p-2 font-bold text-xl ${balance >= 0 ? 'text-green-400' : 'text-red-400'}`}>${balance.toFixed(2)}</td></tr>
                         </tbody>
                     </table>

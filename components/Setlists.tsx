@@ -1,6 +1,24 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
+import Tesseract from 'tesseract.js';
 import type { Setlist } from '../types';
 import { PlusIcon, TrashIcon, EditIcon, SaveIcon } from './icons';
+
+const fileToDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Could not read the image file.'));
+    reader.readAsDataURL(file);
+});
+
+const parseSetlistText = (rawText: string) => {
+    return rawText
+      .split(/\r?\n/)
+      .map((line) => line.replace(/^\d+[\.)\-\s]*/, '').trim())
+      .map((line) => line.replace(/\s{2,}/g, ' '))
+      .filter((line) => line.length > 1)
+      .filter((line) => !/^(setlist|set list|tour|show|performance|notes)$/i.test(line))
+      .slice(0, 25);
+};
 
 interface SetlistsProps {
     activeBandId: string;
@@ -14,10 +32,13 @@ const SetlistCard: React.FC<{
     onUpdate: (id: string, name: string) => void; 
     onAddSong: (id: string, song: string) => void;
     onRemoveSong: (id: string, index: number) => void;
-}> = ({ setlist, onDelete, onUpdate, onAddSong, onRemoveSong }) => {
+    onSavePhoto: (id: string, saved: Partial<Setlist>) => void;
+}> = ({ setlist, onDelete, onUpdate, onAddSong, onRemoveSong, onSavePhoto }) => {
     const [isEditingName, setIsEditingName] = useState(false);
     const [editingName, setEditingName] = useState(setlist.name);
     const [newSong, setNewSong] = useState('');
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const [ocrStatus, setOcrStatus] = useState('');
 
     const handleSaveName = () => {
         onUpdate(setlist.id, editingName);
@@ -29,6 +50,47 @@ const SetlistCard: React.FC<{
         if (!newSong.trim()) return;
         onAddSong(setlist.id, newSong);
         setNewSong('');
+    };
+
+    const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        event.target.value = '';
+        setOcrStatus('Reading setlist image...');
+
+        try {
+            const imageUrl = await fileToDataUrl(file);
+            let extractedText = '';
+            let extractedSongs: string[] = [];
+
+            try {
+                const { data } = await Tesseract.recognize(file, 'eng', {
+                    logger: (progress) => {
+                        if (progress.status === 'recognizing text') {
+                            setOcrStatus(`Extracting setlist text... ${Math.round(progress.progress * 100)}%`);
+                        }
+                    },
+                });
+                extractedText = data.text || '';
+                extractedSongs = parseSetlistText(extractedText);
+            } catch (ocrError) {
+                console.warn('Setlist OCR failed:', ocrError);
+            }
+
+            const savedSongs = extractedSongs.length ? extractedSongs : setlist.songs;
+            onSavePhoto(setlist.id, {
+                imageUrl,
+                extractedText,
+                sourceFileName: file.name,
+                songs: savedSongs,
+                notes: extractedSongs.length ? 'Setlist text was extracted from the uploaded image.' : 'Image uploaded and saved; text can be added manually.',
+                updatedAt: new Date().toISOString(),
+            });
+            setOcrStatus(extractedSongs.length ? 'Setlist image processed and text saved.' : 'Image saved. Add or edit songs manually if needed.');
+        } catch (error) {
+            console.error('Setlist image upload failed:', error);
+            setOcrStatus('The image could not be processed. Please try a clear photo.');
+        }
     };
 
     return (
@@ -56,6 +118,25 @@ const SetlistCard: React.FC<{
                     </button>
                 </div>
             </div>
+
+            {setlist.imageUrl ? (
+                <div className="mb-4 overflow-hidden rounded-lg border border-gray-700 bg-gray-900">
+                    <img src={setlist.imageUrl} alt={setlist.name} className="max-h-48 w-full object-cover" />
+                </div>
+            ) : (
+                <div className="mb-4 flex h-24 items-center justify-center rounded-lg border border-dashed border-gray-600 bg-gray-900 text-xs text-gray-400">
+                    No set photo yet
+                </div>
+            )}
+
+            <div className="mb-3 flex gap-2">
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-md text-sm">
+                    Upload Photo
+                </button>
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+            </div>
+            {ocrStatus && <p className="mb-3 text-xs text-gray-400">{ocrStatus}</p>}
+
             <ol className="list-decimal list-inside space-y-2 mb-4 text-gray-300 min-h-[50px]">
                 {setlist.songs.map((song, index) => (
                     <li key={index} className="flex justify-between items-center group">
@@ -84,7 +165,7 @@ export const Setlists: React.FC<SetlistsProps> = ({ activeBandId, setlists: allS
   const handleAddSetlist = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSetlistName) return;
-    const setlist: Setlist = { id: Date.now().toString(), name: newSetlistName, songs: [], bandId: activeBandId };
+    const setlist: Setlist = { id: Date.now().toString(), name: newSetlistName, songs: [], bandId: activeBandId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
     setAllSetlists(prev => [...prev, setlist]);
     setNewSetlistName('');
     setShowForm(false);
@@ -95,18 +176,22 @@ export const Setlists: React.FC<SetlistsProps> = ({ activeBandId, setlists: allS
   };
   
   const updateSetlistName = (id: string, name: string) => {
-      setAllSetlists(prev => prev.map(s => s.id === id ? { ...s, name } : s));
+      setAllSetlists(prev => prev.map(s => s.id === id ? { ...s, name, updatedAt: new Date().toISOString() } : s));
+  };
+
+  const saveSetlistPhoto = (id: string, saved: Partial<Setlist>) => {
+      setAllSetlists(prev => prev.map(s => s.id === id ? { ...s, ...saved, updatedAt: new Date().toISOString() } : s));
   };
   
   const addSongToSetlist = (setlistId: string, songToAdd: string) => {
     setAllSetlists(prevSetlists => prevSetlists.map(s => 
-      s.id === setlistId ? {...s, songs: [...s.songs, songToAdd]} : s
+      s.id === setlistId ? {...s, songs: [...s.songs, songToAdd], updatedAt: new Date().toISOString()} : s
     ));
   };
   
   const removeSong = (setlistId: string, songIndex: number) => {
     setAllSetlists(prevSetlists => prevSetlists.map(s => 
-      s.id === setlistId ? {...s, songs: s.songs.filter((_, index) => index !== songIndex)} : s
+      s.id === setlistId ? {...s, songs: s.songs.filter((_, index) => index !== songIndex), updatedAt: new Date().toISOString()} : s
     ));
   };
 
@@ -138,6 +223,7 @@ export const Setlists: React.FC<SetlistsProps> = ({ activeBandId, setlists: allS
                     onUpdate={updateSetlistName}
                     onAddSong={addSongToSetlist}
                     onRemoveSong={removeSong}
+                    onSavePhoto={saveSetlistPhoto}
                  />
             ))}
         </div>

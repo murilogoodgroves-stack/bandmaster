@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import useLocalStorage from '../hooks/useLocalStorage';
 import type { MerchItem, Transaction, MerchVariant } from '../types';
 import { TransactionType } from '../types';
@@ -7,6 +7,21 @@ import { initialMerch, initialTransactions } from '../data/initialData';
 import { FinanceMerchImportAssistant } from './FinanceMerchImportAssistant';
 
 const merchTypes = ["T-Shirt", "Vinyl", "CD", "Poster", "Other"];
+
+const createDefaultMerchVariants = (): { [key: string]: MerchVariant[] } => ({
+  Size: [{ id: `size-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`, name: 'Default', stock: 0 }],
+});
+
+const normalizeMerchVariants = (variants?: { [key: string]: MerchVariant[] }) => {
+  if (!variants || !Object.keys(variants).length) return createDefaultMerchVariants();
+
+  const next = { ...variants };
+  if (!next.Size || !Array.isArray(next.Size) || next.Size.length === 0) {
+    next.Size = [{ id: `size-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`, name: 'Default', stock: 0 }];
+  }
+
+  return next;
+};
 
 const LogStockModal: React.FC<{
   item: MerchItem;
@@ -77,20 +92,59 @@ export const Merchandise: React.FC<{
   const merch = useMemo(() => allMerch.filter(m => m.bandId === activeBandId), [allMerch, activeBandId]);
   
   const [showForm, setShowForm] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
+  const priceInputRef = useRef<HTMLInputElement | null>(null);
   const [newItem, setNewItem] = useState<Omit<MerchItem, 'id' | 'bandId'>>({
-    name: '', type: merchTypes[0], cost: 0, price: 0, variants: { Size: [{id: 'v_s', name: 'S', stock: 0}, {id: 'v_m', name: 'M', stock: 0}, {id: 'v_l', name: 'L', stock: 0}]}
+    name: '', type: merchTypes[0], cost: 0, price: 0, variants: { Size: [{ id: 'v_s', name: 'S', stock: 0 }, { id: 'v_m', name: 'M', stock: 0 }, { id: 'v_l', name: 'L', stock: 0 }] }
   });
   const [sale, setSale] = useState({ itemId: '', variantId: '', quantity: 1 });
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [stockModalInfo, setStockModalInfo] = useState<{ item: MerchItem, variant: MerchVariant } | null>(null);
   const [editingItem, setEditingItem] = useState<{ id: string; name: string } | null>(null);
 
-  const handleAddItem = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newItem.name || newItem.price < 0) return;
-    setAllMerch(prev => [...prev, { id: Date.now().toString(), ...newItem, bandId: activeBandId }]);
-    setNewItem({ name: '', type: merchTypes[0], cost: 0, price: 0, variants: { Size: [] } });
+  const handleAddItem = (e?: React.FormEvent | React.MouseEvent<HTMLButtonElement>) => {
+    e?.preventDefault?.();
+
+    const liveName = nameInputRef.current?.value ?? newItem.name;
+    const livePrice = Number(priceInputRef.current?.value ?? newItem.price);
+    const trimmedName = liveName.trim();
+    const nextPrice = Number.isFinite(livePrice) ? livePrice : Number(newItem.price) || 0;
+    const nextCost = Number(newItem.cost) || 0;
+
+    if (!trimmedName) return;
+    if (nextPrice < 0 || nextCost < 0) return;
+
+    const normalizedItem: Omit<MerchItem, 'id' | 'bandId'> = {
+      ...newItem,
+      name: trimmedName,
+      cost: nextCost,
+      price: nextPrice,
+      variants: normalizeMerchVariants(newItem.variants),
+    };
+
+    setAllMerch(prev => [...prev, { id: `merch-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`, ...normalizedItem, bandId: activeBandId }]);
+    setNewItem({
+      name: '',
+      type: merchTypes[0],
+      cost: 0,
+      price: 0,
+      variants: { Size: [{ id: 'v_s', name: 'S', stock: 0 }, { id: 'v_m', name: 'M', stock: 0 }, { id: 'v_l', name: 'L', stock: 0 }] },
+    });
     setShowForm(false);
+  };
+
+  const updateNewItemVariant = (index: number, field: 'name' | 'stock', value: string | number) => {
+    setNewItem(prev => {
+      const nextVariants = { ...prev.variants };
+      const currentSizeList = [...(nextVariants.Size || [])];
+      currentSizeList[index] = {
+        ...currentSizeList[index],
+        name: field === 'name' ? String(value) : currentSizeList[index]?.name || 'Default',
+        stock: field === 'stock' ? Number(value) || 0 : currentSizeList[index]?.stock || 0,
+      };
+      nextVariants.Size = currentSizeList;
+      return { ...prev, variants: nextVariants };
+    });
   };
   
   const deleteItem = (id: string) => setAllMerch(prev => prev.filter(i => i.id !== id));
@@ -238,27 +292,49 @@ export const Merchandise: React.FC<{
           <h3 className="text-xl font-bold mb-4">New Merch Item</h3>
           <form onSubmit={handleAddItem} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input type="text" placeholder="Item Name" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} className="bg-gray-700 p-3 rounded-lg" />
+                <input ref={nameInputRef} type="text" placeholder="Item Name" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} className="bg-gray-700 p-3 rounded-lg" />
                 <select value={newItem.type} onChange={e => setNewItem({...newItem, type: e.target.value})} className="bg-gray-700 p-3 rounded-lg">
                     {merchTypes.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
                 <input type="number" placeholder="Cost per item" min="0" step="0.01" value={newItem.cost} onChange={e => setNewItem({...newItem, cost: parseFloat(e.target.value) || 0})} className="bg-gray-700 p-3 rounded-lg" />
-                <input type="number" placeholder="Sale Price" min="0" step="0.01" value={newItem.price} onChange={e => setNewItem({...newItem, price: parseFloat(e.target.value) || 0})} className="bg-gray-700 p-3 rounded-lg" />
+                <input ref={priceInputRef} type="number" placeholder="Sale Price" min="0" step="0.01" value={newItem.price} onChange={e => setNewItem({...newItem, price: parseFloat(e.target.value) || 0})} className="bg-gray-700 p-3 rounded-lg" />
             </div>
             {/* Simple variant handling for now */}
             <div>
                 <label className="text-gray-400 text-sm">Variants (e.g., Size, Color)</label>
                 <p className="text-xs text-gray-500 mb-2">For this demo, we'll stick with sizes. Edit data/initialData.ts for more complex variants.</p>
                 <div className="space-y-2">
-                 {newItem.variants['Size']?.map((variant, index) => (
-                    <div key={index} className="flex gap-2 items-center">
-                        <input type="text" value={variant.name} placeholder="Size (e.g. 'S')" className="bg-gray-700 p-2 rounded-lg w-1/3"/>
-                        <input type="number" value={variant.stock} placeholder="Stock" className="bg-gray-700 p-2 rounded-lg w-1/3"/>
+                 {(newItem.variants?.Size || []).map((variant, index) => (
+                    <div key={`${variant.id || index}`} className="flex gap-2 items-center">
+                        <input
+                          type="text"
+                          value={variant.name}
+                          onChange={(e) => updateNewItemVariant(index, 'name', e.target.value)}
+                          placeholder="Size (e.g. 'S')"
+                          className="bg-gray-700 p-2 rounded-lg w-1/3"
+                        />
+                        <input
+                          type="number"
+                          value={variant.stock}
+                          onChange={(e) => updateNewItemVariant(index, 'stock', Number(e.target.value || 0))}
+                          placeholder="Stock"
+                          className="bg-gray-700 p-2 rounded-lg w-1/3"
+                        />
                     </div>
                  ))}
                 </div>
             </div>
-            <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition-colors">Save Item</button>
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleAddItem(e as unknown as React.MouseEvent<HTMLButtonElement>);
+              }}
+              onClick={() => handleAddItem()}
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition-colors"
+            >
+              Save Item
+            </button>
           </form>
         </div>
       )}

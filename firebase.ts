@@ -1,9 +1,8 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import firebaseConfig from './firebase-applet-config.json';
+// Firebase was removed from the runtime. This project persists through Neon/Postgres.
+// Keeping this file as a compatibility stub prevents accidental runtime initialization.
+export const db = null as any;
+export const auth = null as any;
 
-// Initialize Firebase SDK
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-export const auth = getAuth(app);
+if (typeof console !== 'undefined') {
+  console.warn('Firebase compatibility stub loaded. Use Neon/Postgres persistence instead.');
+}

@@ -1,6 +1,6 @@
-# BandHQ
+# BANDMATE
 
-BandHQ is a band management dashboard with AI-powered outreach, production planning, and operations tracking.
+BANDMATE is a band management platform with AI-powered outreach, production planning, and operations tracking.
 
 ## Run locally
 

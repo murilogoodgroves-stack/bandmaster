@@ -1,7 +1,6 @@
-import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
-import * as firebaseConfig from '../firebase-applet-config.json';
+// Firebase was removed from the runtime. Neon/Postgres is the canonical database.
+export const db = null as any;
 
-// Initialize Firebase SDK for server usage
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+if (typeof console !== 'undefined') {
+  console.warn('Firebase server stub loaded. The app is using Neon/Postgres persistence.');
+}

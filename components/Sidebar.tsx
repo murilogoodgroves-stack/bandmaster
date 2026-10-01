@@ -4,7 +4,7 @@ import type { Page, User, BandProfile } from '../types';
 import { 
     DashboardIcon, ProjectsIcon, CalendarIcon, FinancialsIcon, PressIcon, MerchIcon, ReleaseIcon, TourIcon, SetlistIcon, CollaboratorIcon, ResourcesIcon, SettingsIcon,
     ProductionIcon, FundingIcon, FestivalIcon, GoalsIcon, MediaArchiveIcon, EPKIcon, BookingIcon, RoyaltiesIcon, MailIcon, BuildingIcon, BarChartIcon, UsersIcon, PlusIcon, EditIcon, StageIcon, RadioIcon, MegaphoneIcon,
-    SoundMatchIcon, InvoiceIcon, SaveIcon, SlashIcon, HomeIcon, TerminalIcon, QuestionMarkCircleIcon, ChevronDownIcon
+    SoundMatchIcon, InvoiceIcon, SaveIcon, MenuIcon, HomeIcon, TerminalIcon, QuestionMarkCircleIcon, ChevronDownIcon, BotIcon
 } from './icons';
 
 interface SidebarProps {
@@ -40,7 +40,7 @@ const BandSwitcher: React.FC<{
                     value={activeBandId}
                     onChange={(e) => onBandChange(e.target.value)}
                     disabled={!isAdmin && bands.length <= 1}
-                    className={`w-full bg-brand-bg-card/50 text-white text-sm font-medium p-2 pr-8 rounded-lg border border-brand-border focus:outline-none focus:ring-1 focus:ring-brand-accent/50 transition-all appearance-none ${isAdmin || bands.length > 1 ? 'cursor-pointer hover:border-brand-accent/50' : 'cursor-default'}`}
+                    className={`w-full bg-white text-gray-900 text-sm font-medium p-2 pr-8 rounded-lg border border-brand-border focus:outline-none focus:ring-1 focus:ring-brand-accent/50 transition-all appearance-none ${isAdmin || bands.length > 1 ? 'cursor-pointer hover:border-brand-accent/50' : 'cursor-default'}`}
                     aria-label="Switch active band"
                 >
                     {bands.map(band => (
@@ -66,6 +66,15 @@ const BandSwitcher: React.FC<{
     </div>
 );
 
+
+const getUserAvatarUrl = (user: Pick<User, 'avatar' | 'email' | 'name'>) => {
+  const safeAvatar = user.avatar?.trim();
+  if (safeAvatar && (safeAvatar.startsWith('data:image/') || safeAvatar.startsWith('http://') || safeAvatar.startsWith('https://'))) {
+    return safeAvatar;
+  }
+  const seed = (user.email || user.name || 'bandmate-user').trim() || 'bandmate-user';
+  return `https://i.pravatar.cc/150?u=${encodeURIComponent(seed)}`;
+};
 
 const NavItem: React.FC<{
   icon: React.ReactNode;
@@ -97,8 +106,13 @@ const NavSectionHeader: React.FC<{ title: string }> = ({ title }) => (
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBandId, onBandChange, onNewBandClick, onEditBandClick, onHelpClick, users, currentUser, setUsers }) => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  const managementNavItems = [
+  const quickNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon className="h-5 w-5" /> },
+    { id: 'wizard', label: 'BandMate Wizard', icon: <BotIcon className="h-5 w-5" /> },
+    { id: 'links', label: 'Links Database', icon: <SaveIcon className="h-5 w-5" /> },
+  ];
+
+  const managementNavItems = [
     { id: 'projects', label: 'Projects', icon: <ProjectsIcon className="h-5 w-5" /> },
     { id: 'calendar', label: 'Calendar', icon: <CalendarIcon className="h-5 w-5" /> },
     { id: 'reports', label: 'Reports', icon: <BarChartIcon className="h-5 w-5" /> },
@@ -171,8 +185,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBand
     <button 
         onClick={() => setIsMobileOpen(!isMobileOpen)}
         className="fixed top-3 left-3 z-[60] p-2 bg-brand-bg-card rounded-md border border-brand-border lg:hidden text-white"
+        aria-label="Toggle navigation menu"
     >
-        <SlashIcon className="w-6 h-6" />
+        <MenuIcon className="w-6 h-6" />
     </button>
 
     {/* Overlay for mobile */}
@@ -180,12 +195,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBand
 
     <aside className={`flex flex-col w-64 bg-brand-bg-sidebar text-gray-100 min-h-screen p-4 fixed lg:sticky top-0 h-screen overflow-y-auto border-r border-brand-border z-[60] transition-transform duration-300 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
       <div className="flex items-center mb-6 flex-shrink-0 px-2 pt-2 lg:pt-0 pl-10 lg:pl-2 justify-between">
-        <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-white tracking-tight leading-none truncate max-w-[150px]">
+        <button
+          type="button"
+          onClick={() => {
+            window.location.hash = 'dashboard';
+            onBandChange(activeBandId);
+          }}
+          className="flex flex-col text-left rounded-lg px-2 py-1 transition-colors hover:bg-white/5"
+          aria-label={`Open dashboard for ${bands.find(b => b.id === activeBandId)?.name || 'current band'}`}
+        >
+            <span className="text-xl font-bold text-black tracking-tight leading-none truncate max-w-[150px]">
                 {bands.find(b => b.id === activeBandId)?.name || 'Band'}
-            </h1>
+            </span>
             <span className="text-[10px] text-brand-accent font-bold uppercase tracking-[0.3em] mt-1">Management HQ</span>
-        </div>
+        </button>
         <div className="flex items-center gap-1 ml-2">
             <button 
                 onClick={onEditBandClick}
@@ -217,6 +240,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBand
       />
 
       <nav className="flex-grow">
+        <NavSectionHeader title="Quick Access" />
+        <ul>
+          {quickNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
+        </ul>
         <NavSectionHeader title="Management" />
         <ul>
           {managementNavItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} page={item.id as Page} isActive={currentPage === item.id} onClick={() => setIsMobileOpen(false)} />)}
@@ -256,19 +283,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, bands, activeBand
               isActive={currentPage === settingsItem.id}
               onClick={() => setIsMobileOpen(false)}
             />
-            <NavItem
-              key="help"
-              icon={<QuestionMarkCircleIcon className="h-5 w-5" />}
-              label="Help Center"
-              page="dashboard"
-              isActive={false}
-              onClick={onHelpClick}
-            />
+            <li>
+              <button
+                onClick={() => { onHelpClick(); setIsMobileOpen(false); }}
+                className="flex items-center w-full px-3 py-2 my-1 rounded-md cursor-pointer transition-colors duration-200 border-l-4 border-transparent text-gray-400 hover:bg-white/5 hover:text-white"
+              >
+                <QuestionMarkCircleIcon className="h-5 w-5" />
+                <span className="mx-3">Help Center</span>
+              </button>
+            </li>
          </ul>
          <div className="border-t border-brand-border my-2"></div>
          <div className="flex items-center p-2">
             <label className="relative group cursor-pointer">
-                <img src={activeUser.avatar || 'https://i.pravatar.cc/150?u=default'} alt={activeUser.name} className="h-10 w-10 rounded-full group-hover:opacity-50 transition-opacity" />
+                <img src={getUserAvatarUrl(activeUser)} alt={activeUser.name} className="h-10 w-10 rounded-full group-hover:opacity-50 transition-opacity" />
                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
                     <EditIcon className="w-5 h-5 text-white" />
                 </div>

@@ -1,33 +1,33 @@
-# Guia operativo do projeto Bandmaster
+# Bandmaster project operating guide
 
-## Objetivo deste documento
+## Purpose of this document
 
-Este arquivo serve como referência para qualquer pessoa ou IA que continuar o projeto depois de uma sessão, especialmente após alterações de conteúdo, onboarding e setup de ambiente.
+This file serves as a reference for anyone or any AI continuing the project after a session, especially after content changes, onboarding changes, and environment setup work.
 
-## Estado atual do projeto
+## Current project state
 
-- O sistema foi limpo para arrancar sem dados demo embutidos.
-- O app não carrega conteúdo placeholder por padrão.
-- A criação de banda agora passa por um wizard guiado para coletar dados reais da banda.
-- A base da aplicação continua funcionando sem depender de dados falsos.
+- The system has been cleaned to start without built-in demo data.
+- The app does not load placeholder content by default.
+- Band creation now goes through a guided wizard to collect real band data.
+- The application core continues to work without depending on fake data.
 
-## Regras de segurança para futuras alterações
+## Safety rules for future changes
 
-1. Nunca reintroduzir conteúdo demo como valor default no app.
-2. Sempre manter um início em estado limpo ou em onboarding.
-3. Antes de mexer em dados iniciais, criar uma branch nova.
-4. Se for necessário restaurar dados de exemplo, fazer isso de forma explícita e isolada, não como estado default.
-5. Qualquer mudança grande deve ser documentada aqui.
+1. Never reintroduce demo content as the app default value.
+2. Always keep the app starting in a clean or onboarding state.
+3. Before changing initial data, create a new branch.
+4. If sample data needs to be restored, do it explicitly and in isolation, not as default state.
+5. Any significant change should be documented here.
 
-## Branch ativa
+## Active branch
 
-A branch usada para estes ajustes foi:
+The branch used for these adjustments was:
 
 - cleanup-placeholder-content-wizard
 
-Se for continuar o desenvolvimento, use uma branch nova por funcionalidade.
+If you continue development, use a new branch per feature.
 
-Exemplo:
+Example:
 
 ```bash
 git checkout -b feature-dashboard-ai
@@ -35,76 +35,76 @@ git checkout -b feature-band-setup
 git checkout -b fix-calendar-loading
 ```
 
-## Como o wizard funciona
+## How the wizard works
 
-O wizard está dentro do modal de criação de banda e agora funciona como uma entrevista real de setup da banda. Ele coleta:
+The wizard lives inside the band creation modal and now works like a real setup interview for the band. It collects:
 
-- nome da banda
-- gênero
-- cidade
-- país
-- estágio atual da banda
-- status de release
-- título e data de lançamento
-- status de tour
-- agenda de shows
-- foco atual
-- bio e notas internas
+- band name
+- genre
+- city
+- country
+- current band stage
+- release status
+- release title and date
+- tour status
+- upcoming shows list
+- current focus
+- bio and internal notes
 
-Esses campos alimentam o estado da banda sem forçar conteúdo placeholder. A qualquer momento o usuário pode clicar em "Skip for now" para continuar em branco e depois completar a banda usando o ícone discreto ao lado do nome da banda.
+These fields feed the band state without forcing placeholder content. At any time, the user can click "Skip for now" to continue blank and then complete the band later using the discreet icon next to the band name.
 
-## O que foi limpo
+## What was cleaned
 
-Os dados default foram removidos de:
+Default data was removed from:
 
-- dados iniciais das bandas
-- usuários demo
-- tarefas demo
-- eventos demo
-- transações demo
-- releases demo
-- merch demo
-- setlists demo
-- gigs demo
-- projetos demo
-- campanhas demo
-- royalties demo
-- arquivos de mídia demo
+- initial band data
+- demo users
+- demo tasks
+- demo events
+- demo transactions
+- demo releases
+- demo merch
+- demo setlists
+- demo gigs
+- demo projects
+- demo campaigns
+- demo royalties
+- demo media files
 
-Isso evita que a aplicação seja entregue pronta com nomes, álbuns e projetos falsos.
+This prevents the application from being delivered with fake names, albums, and projects already in place.
 
-## Como reverter se algo quebrar
+## How to revert if something breaks
 
-Se uma mudança posterior comprometer o funcionamento:
+If a later change impacts functionality:
 
-1. voltar para a branch principal ou para a branch de referência
-2. confirmar o último commit estável
-3. verificar o estado de localStorage e do wizard
-4. remover mudanças semânticas duplicadas
-5. revalidar com build do projeto
+1. return to the main branch or the reference branch
+2. confirm the latest stable commit
+3. check the localStorage state and the wizard flow
+4. remove duplicated semantic changes
+5. revalidate with the project build
 
-Comando útil:
+Useful command:
 
 ```bash
 git checkout main
 git log --oneline --decorate -n 10
 ```
 
-## Fluxo recomendado para continuar
+## Recommended workflow going forward
 
-- trabalhar em branch por funcionalidade
-- validar build sempre que houver mudança grande
-- manter dados reais e band-specific na criação da banda
-- evitar guardar dados de exemplo como padrão do app
-- respeitar o fluxo de onboarding e o "skip for now" para não bloquear a experiência inicial
-- usar o ícone de edição discreto para reabrir o wizard e ajustar os dados sem quebrar o estado atual
+- work in a feature branch
+- validate the build whenever a large change is made
+- keep real, band-specific data in the band creation flow
+- avoid storing sample data as the default app state
+- respect the onboarding flow and the "skip for now" option to avoid blocking the initial experience
+- use the discreet edit icon to reopen the wizard and adjust the data without breaking the current state
 
-## Arquivos-chave relacionados
+## Key related files
 
 - App.tsx
 - data/initialData.ts
 - types.ts
 
-## Observação final
+## Final note
 
-O app deve abrir em estado limpo e exigir que o usuário configure a banda real do início. Isso reduz ruído, evita placeholders e deixa o sistema mais profissional e pronto para uso real.
+The app should open in a clean state and require the user to configure the real band from the start. This reduces noise, avoids placeholders, and leaves the system more professional and ready for real-world use.

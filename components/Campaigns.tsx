@@ -1,11 +1,14 @@
 
 import React, { useState, useMemo } from 'react';
 import useLocalStorage from '../hooks/useLocalStorage';
-import type { EmailCampaign, PressContact, Venue, Promoter, BandProfile, CalendarEvent, User, Release, Tour, Show, LabelContact, RadioContact, ProductionProject, FanContact, EmailFollowUp } from '../types';
+import type { EmailCampaign, PressContact, Venue, Promoter, BandProfile, CalendarEvent, User, Release, Tour, Show, LabelContact, RadioContact, ProductionProject, FanContact, EmailFollowUp, BandSettings } from '../types';
 import { CampaignType, EventType } from '../types';
+import { buildNewsletterEmailHtml, buildMailchimpCampaignPayload, validateMailchimpConfig } from '../services/releaseMarketing';
 import { initialCampaigns, initialPressContacts, initialPromoters, initialBandProfiles, initialEvents, initialUsers, initialReleases, initialTours, initialLabelContacts, initialRadioContacts, initialProductionProjects, initialFanContacts, initialVenues } from '../data/initialData';
 import { PlusIcon, TrashIcon, MailIcon, BotIcon, ChevronLeftIcon, ChevronRightIcon, EyeIcon, MousePointerClickIcon, CalendarIcon, ClockIcon } from './icons';
 import { generateEmail, EmailTone, EmailLength, generateEmailFromEPK } from '../services/aiService';
+import { validateCampaignRecipients } from '../services/campaignSafety';
+import { Tip } from './Tip';
 
 type CampaignView = 'list' | 'create';
 type CreateStep = 1 | 2 | 3 | 4;
@@ -22,9 +25,10 @@ interface CampaignsProps {
     radioContacts: RadioContact[];
     fanContacts: FanContact[];
     projects: ProductionProject[];
+    bandSettings: BandSettings;
 }
 
-export const Campaigns: React.FC<CampaignsProps> = ({ users, activeBandId, campaigns: allCampaigns, setCampaigns, pressContacts, venues, promoters, labelContacts, radioContacts, fanContacts, projects }) => {
+export const Campaigns: React.FC<CampaignsProps> = ({ users, activeBandId, campaigns: allCampaigns, setCampaigns, pressContacts, venues, promoters, labelContacts, radioContacts, fanContacts, projects, bandSettings }) => {
     const campaigns = useMemo(() => allCampaigns.filter(c => c.bandId === activeBandId), [allCampaigns, activeBandId]);
     
     const [view, setView] = useState<CampaignView>('list');
@@ -92,6 +96,7 @@ export const Campaigns: React.FC<CampaignsProps> = ({ users, activeBandId, campa
             radioContacts={radioContacts}
             fanContacts={fanContacts}
             projects={projects}
+            bandSettings={bandSettings}
         />;
     }
 
@@ -171,6 +176,7 @@ interface CampaignCreatorProps {
     radioContacts: RadioContact[];
     fanContacts: FanContact[];
     projects: ProductionProject[];
+    bandSettings: BandSettings;
 }
 
 
@@ -179,6 +185,58 @@ const CampaignCreator: React.FC<CampaignCreatorProps> = ({ campaign, onSave, onB
     const [campaignData, setCampaignData] = useState<EmailCampaign>(campaign);
     
     const [schedule, setSchedule] = useState(!!campaign.scheduledDate);
+    const [approvalWarning, setApprovalWarning] = useState('');
+
+    const sendViaMailchimp = async () => {
+        if (campaignData.type !== CampaignType.Newsletter) return true;
+        const config = validateMailchimpConfig({
+            apiKey: contactProps.bandSettings.mailchimpApiKey || '',
+            serverPrefix: contactProps.bandSettings.mailchimpServerPrefix || '',
+            listId: contactProps.bandSettings.mailchimpAudienceId || '',
+        });
+
+        if (!config.valid) {
+            setApprovalWarning('Mailchimp is not configured for this band. Add the API key, server prefix, and audience ID in Settings before sending a newsletter.');
+            return false;
+        }
+
+        const html = buildNewsletterEmailHtml({
+            projectName: campaignData.name || 'New Release',
+            artistName: 'Artist',
+            releaseDate: new Date().toISOString().slice(0, 10),
+            description: campaignData.body || 'We are excited to share this update with you.',
+            ctaText: 'Listen Now',
+            ctaUrl: 'https://example.com/listen'
+        });
+
+        try {
+            const response = await fetch('/api/mailchimp/campaign', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    apiKey: contactProps.bandSettings.mailchimpApiKey,
+                    serverPrefix: contactProps.bandSettings.mailchimpServerPrefix,
+                    listId: contactProps.bandSettings.mailchimpAudienceId,
+                    title: campaignData.name || 'Newsletter',
+                    subject: campaignData.subject || 'New update',
+                    fromName: contactProps.bandSettings.mailchimpFromName || 'BandMate',
+                    replyTo: contactProps.bandSettings.mailchimpReplyTo || 'hello@example.com',
+                    html,
+                }),
+            });
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                setApprovalWarning(data.message || 'Mailchimp rejected the send request. Check the API key and audience settings.');
+                return false;
+            }
+
+            return true;
+        } catch (error) {
+            setApprovalWarning('Mailchimp channel is unavailable right now. Draft was saved safely; update the API settings and try again.');
+            return false;
+        }
+    };
     
     // Format date for datetime-local input
     const formatDateTimeLocal = (isoString: string | undefined) => {
@@ -195,15 +253,48 @@ const CampaignCreator: React.FC<CampaignCreatorProps> = ({ campaign, onSave, onB
         status: 'Draft',
         scheduledDate: schedule && scheduleDate ? new Date(scheduleDate).toISOString() : undefined,
     });
-    
-    const handleSend = () => {
+
+    const getRecipientPayload = () => {
+        const allRecipients = [...contactProps.fanContacts, ...contactProps.pressContacts, ...contactProps.labelContacts, ...contactProps.radioContacts, ...contactProps.promoters, ...contactProps.venues.map(v => ({ id: v.id, name: v.name, email: v.bookingEmail || v.generalEmail, origin: 'Venue', consentStatus: 'explicit_opt_in' }))]
+            .filter(rec => campaignData.recipientIds.includes(rec.id));
+
+        const normalized = allRecipients.map(rec => ({
+            id: rec.id,
+            email: rec.email,
+            name: 'name' in rec ? rec.name : undefined,
+            origin: 'origin' in rec ? rec.origin : 'source',
+            consentStatus: 'consentStatus' in rec ? rec.consentStatus : 'pending_review',
+        }));
+
+        return normalized;
+    };
+
+    const handleSend = async () => {
         const action = schedule ? 'schedule' : 'send';
-        if (window.confirm(`This will ${action} the campaign to ${campaignData.recipientIds.length} recipients. Continue?`)) {
+        const recipients = getRecipientPayload();
+        const validation = validateCampaignRecipients(recipients);
+
+        if (recipients.length === 0) {
+            setApprovalWarning('No valid recipients selected. Add at least one verified contact before sending.');
+            return;
+        }
+
+        if (!validation.safeToSend) {
+            setApprovalWarning(`This campaign cannot be sent yet. ${validation.summary.blocked} recipients are blocked because they are missing consent, invalid, or duplicate. Review the audience and approve only after a dry run passes.`);
+            return;
+        }
+
+        if (window.confirm(`This will ${action} the campaign to ${validation.approvedRecipients.length} verified recipients. Continue?`)) {
+            const mailchimpOk = await sendViaMailchimp();
+            if (mailchimpOk === false) {
+                return;
+            }
+
             if (schedule && scheduleDate) {
                 onSave({ ...campaignData, status: 'Scheduled', scheduledDate: new Date(scheduleDate).toISOString() });
             } else {
-                const openRate = Math.floor(Math.random() * (75 - 25 + 1)) + 25; // 25-75%
-                const clickRate = Math.floor(Math.random() * (openRate * 0.4 - 2 + 1)) + 2; // 2-40% of opens
+                const openRate = Math.floor(Math.random() * (75 - 25 + 1)) + 25;
+                const clickRate = Math.floor(Math.random() * (openRate * 0.4 - 2 + 1)) + 2;
                 onSave({
                     ...campaignData,
                     status: 'Sent',
@@ -240,6 +331,11 @@ const CampaignCreator: React.FC<CampaignCreatorProps> = ({ campaign, onSave, onB
                 {step === 3 && <Step3 data={campaignData} setData={setCampaignData} activeBandId={activeBandId} />}
                 {step === 4 && <Step4 data={campaignData} schedule={schedule} setSchedule={setSchedule} scheduleDate={scheduleDate} setScheduleDate={setScheduleDate} users={users} />}
                 
+                {approvalWarning && (
+                    <div className="mt-4 rounded-lg border border-red-500 bg-red-900/30 p-3 text-sm text-red-200">
+                        {approvalWarning}
+                    </div>
+                )}
                 <div className="mt-6 flex justify-between items-center">
                     <div>
                         {step > 1 && <button onClick={prevStep} className="bg-gray-600 hover:bg-gray-700 font-bold py-2 px-4 rounded-lg">Back</button>}

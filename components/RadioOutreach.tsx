@@ -102,7 +102,7 @@ const RadioFinder: React.FC<{ onAddContact: (contact: RadioOpportunity, query: s
         window.dispatchEvent(new CustomEvent('start-task', { detail: { id: taskId, name: 'Finding more radio stations...', estimatedDuration: 30 } }));
         
         try {
-            const newContacts = await findRadioContacts(genre, country, [...savedContacts, ...results.map(r => ({...r, id: '', bandId: '', stationName: r.stationName, name: r.contactName, email: r.email}))]);
+            const newContacts = await findRadioContacts(genre, country, [...savedContacts, ...results.map(r => ({ stationName: r.stationName }))]);
             setResults(prev => [...prev, ...newContacts]);
         } finally {
             setIsLoadMoreLoading(false);
@@ -175,6 +175,7 @@ export const RadioOutreach: React.FC<RadioOutreachProps> = ({ bands, radioContac
   const [editingContact, setEditingContact] = useState<RadioContact | null>(null);
   const [contactForEmail, setContactForEmail] = useState<PressContact | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
+  const [showTip, setShowTip] = useLocalStorage<boolean>('showRadioTip', true);
 
   const showNotification = (message: string) => {
     setNotification(message);

@@ -7,6 +7,7 @@ import { PlusIcon, TrashIcon, EditIcon } from './icons';
 import { initialTasks, initialProductionProjects, initialUsers } from '../data/initialData';
 import { Tip } from './Tip';
 import { ProjectModal } from './modals/ProjectModal';
+import { buildProjectExecutionPlan } from '../projectPlanning';
 
 interface ProjectsProps {
     activeBandId: string;
@@ -456,16 +457,42 @@ export const Projects: React.FC<ProjectsProps> = ({ activeBandId, users, tasks, 
     };
 
     const handleSaveProject = (projectData: ProductionProject) => {
+        const normalizedProject: ProductionProject = {
+            ...projectData,
+            name: projectData.name.trim() || 'Untitled Project',
+            strategicGoal: projectData.strategicGoal?.trim() || '',
+            whatMoreCanIDo: projectData.whatMoreCanIDo?.trim() || '',
+            description: projectData.description?.trim() || '',
+        };
+
+        const plan = buildProjectExecutionPlan(normalizedProject);
+        const generatedTasks: Task[] = plan.tasks.map((task, index) => ({
+            id: `task-${normalizedProject.id}-${index}`,
+            bandId: activeBandId,
+            projectId: normalizedProject.id,
+            title: task.title,
+            assignedToId: users[0]?.id || '',
+            dueDate: task.dueDate,
+            status: task.status,
+            priority: task.priority,
+            notes: task.notes,
+        }));
+
         setAllProjects(prev => {
-            const exists = prev.some(p => p.id === projectData.id);
+            const exists = prev.some(p => p.id === normalizedProject.id);
             if (exists) {
-                return prev.map(p => p.id === projectData.id ? projectData : p);
+                return prev.map(p => p.id === normalizedProject.id ? normalizedProject : p);
             }
-            return [...prev, projectData];
+            return [...prev, normalizedProject];
         });
-        // if it's a new project, select it
-        if (!projects.some(p => p.id === projectData.id)) {
-            setSelectedProjectId(projectData.id);
+
+        setTasks(prev => {
+            const keepOutsideProject = prev.filter(task => task.projectId !== normalizedProject.id || task.bandId !== activeBandId);
+            return [...keepOutsideProject, ...generatedTasks];
+        });
+
+        if (!projects.some(p => p.id === normalizedProject.id)) {
+            setSelectedProjectId(normalizedProject.id);
         }
         setIsProjectModalOpen(false);
         setEditingProject(null);

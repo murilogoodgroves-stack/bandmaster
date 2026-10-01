@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { BandProfile, SearchResult, WebSource, Song, ProductionProject, Task, Transaction, Tour, Release, MerchItem, CalendarEvent, PressContact, LabelContact, RadioContact, Venue, FestivalOpportunity, FundingOpportunity, SoundProfileAnalysis, SoundMatchOpportunity, ResidencyOpportunity, OpeningSlotOpportunity, Gig } from '../types';
+import { BandProfile, SearchResult, WebSource, Song, ProductionProject, Task, Transaction, Tour, Release, MerchItem, CalendarEvent, PressContact, LabelContact, RadioContact, RadioOpportunity, Venue, FestivalOpportunity, FundingOpportunity, SoundProfileAnalysis, SoundMatchOpportunity, ResidencyOpportunity, OpeningSlotOpportunity, Gig } from '../types';
 
 // Provider configurations
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -12,12 +12,12 @@ const OPENROUTER_MODEL = "google/gemini-2.0-flash-exp:free";
 const MINIMAX_MODEL = "abab6.5s-chat";
 const MINIMAX_IMAGE_MODEL = "minimax-v2-image-generation";
 const GROQ_MODEL = "llama-3.3-70b-versatile";
-const GEMINI_MODEL = "gemini-3-flash-preview";
+const GEMINI_MODEL = "gemini-2.5-flash";
 
 const getOpenRouterKey = () => import.meta.env.VITE_OPENROUTER_API_KEY;
 const getMiniMaxKey = () => import.meta.env.VITE_MINIMAX_API_KEY;
 const getGroqKey = () => import.meta.env.VITE_GROQ_API_KEY;
-const getGeminiKey = () => process.env.GEMINI_API_KEY;
+const getGeminiKey = () => import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : undefined);
 
 // AI Status tracking
 export type AIProviderStatus = 'online' | 'fallback' | 'offline' | 'error';
@@ -202,7 +202,7 @@ export const callAI = async (messages: { role: string, content: string }[], json
                     "Authorization": `Bearer ${openRouterKey}`,
                     "Content-Type": "application/json",
                     "HTTP-Referer": window.location.origin,
-                    "X-Title": "BandHQ"
+                    "X-Title": "BANDMATE"
                 },
                 body: JSON.stringify({
                     model: OPENROUTER_MODEL,
@@ -366,11 +366,9 @@ export const generateImage = async (prompt: string): Promise<string> => {
             const ai = new GoogleGenAI({ apiKey: geminiKey });
             const response = await ai.models.generateContent({
                 model: 'gemini-2.5-flash-image',
-                contents: { parts: [{ text: prompt }] },
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
                 config: {
-                    imageConfig: {
-                        aspectRatio: "1:1"
-                    }
+                    responseModalities: ['TEXT', 'IMAGE']
                 }
             });
 
@@ -378,7 +376,8 @@ export const generateImage = async (prompt: string): Promise<string> => {
             for (const part of response.candidates?.[0]?.content?.parts || []) {
                 if (part.inlineData) {
                     updateAIStatus({ provider: 'Google Gemini', status: 'fallback', message: 'Primary image provider failed, using Gemini' });
-                    return `data:image/png;base64,${part.inlineData.data}`;
+                    const mimeType = part.inlineData.mimeType || 'image/png';
+                    return `data:${mimeType};base64,${part.inlineData.data}`;
                 }
             }
             console.warn("Gemini Image generation returned no image data");
@@ -772,7 +771,7 @@ export const generateReportConfigFromPrompt = async (userPrompt: string, project
     }
 };
 
-export const findRadioContacts = async (genre: string, country: string, existing: any[] = []): Promise<RadioContact[]> => {
+export const findRadioContacts = async (genre: string, country: string, existing: any[] = []): Promise<RadioOpportunity[]> => {
     const exclude = existing.map(e => e.stationName).join(', ');
     const prompt = `Find radio stations for genre: "${genre}" in "${country || 'anywhere'}".
     Exclude: ${exclude}.
@@ -783,15 +782,13 @@ export const findRadioContacts = async (genre: string, country: string, existing
         const parsed = JSON.parse(text);
         const raw = Array.isArray(parsed) ? parsed : (parsed.stations || parsed.results || []);
         return raw.map((r: any) => ({
-            id: '',
-            name: r.contactName,
-            stationName: r.stationName,
-            email: r.email,
-            country: r.country,
-            city: r.city,
-            submissionUrl: r.url,
-            description: r.description,
-            bandId: ''
+            stationName: r.stationName || '',
+            contactName: r.contactName || '',
+            email: r.email || '',
+            country: r.country || '',
+            city: r.city || '',
+            description: r.description || '',
+            url: r.url || ''
         }));
     } catch (e) {
         return [];

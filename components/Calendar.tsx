@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import type { CalendarEvent, User, LockedDate, Task, Release, Tour, Festival, FundingApplication, ProductionProject } from '../types';
+import type { CalendarEvent, User, LockedDate, Task, Release, Tour, Festival, FundingApplication, ProductionProject, Gig } from '../types';
 import { EventType } from '../types';
 import { PlusIcon, TrashIcon, LockIcon, ChevronLeftIcon, ChevronRightIcon, ClockIcon, TourIcon, ReleaseIcon, FundingIcon, AlertIcon } from './icons';
 import { Tip } from './Tip';
@@ -15,7 +15,7 @@ interface UnifiedEvent {
     participants: string[];
     projectId?: string;
     originalId: string;
-    sourceType: 'event' | 'task' | 'release' | 'checklist' | 'show' | 'festival' | 'funding';
+    sourceType: 'event' | 'task' | 'release' | 'checklist' | 'show' | 'festival' | 'funding' | 'gig';
     reminders?: number[]; // days before event
     materials?: string[]; // links or descriptions
 }
@@ -136,7 +136,7 @@ const ReadOnlyModal: React.FC<{
     onClose: () => void; 
     onDelete: () => void;
 }> = ({ unifiedEvent, onClose, onDelete }) => {
-    const isDeletable = ['task', 'festival', 'funding'].includes(unifiedEvent.sourceType);
+    const isDeletable = ['task', 'festival', 'funding', 'gig'].includes(unifiedEvent.sourceType);
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
@@ -179,6 +179,8 @@ interface CalendarProps {
     setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
     releases: Release[];
     tours: Tour[];
+    gigs: Gig[];
+    setGigs: React.Dispatch<React.SetStateAction<Gig[]>>;
     festivals: Festival[];
     setFestivals: React.Dispatch<React.SetStateAction<Festival[]>>;
     fundingApplications: FundingApplication[];
@@ -191,7 +193,7 @@ export const Calendar: React.FC<CalendarProps> = ({
     users, activeBandId, 
     events: allEvents, setEvents, 
     tasks: allTasks, setTasks,
-    releases: allReleases, tours: allTours, 
+    releases: allReleases, tours: allTours, gigs: allGigs, setGigs,
     festivals: allFestivals, setFestivals,
     fundingApplications: allFundingApplications, setFundingApplications,
     lockedDates: allLockedDates, projects: allProjects 
@@ -272,6 +274,17 @@ export const Calendar: React.FC<CalendarProps> = ({
             });
         });
 
+        // Gig Dates
+        allGigs.filter(g => g.bandId === activeBandId).forEach(g => allUnifiedEvents.push({ 
+            id: `gig-${g.id}`, 
+            date: parseDate(g.date), 
+            title: `Gig: ${g.eventName || g.location}`,
+            type: EventType.Gig,
+            participants: [],
+            originalId: g.id,
+            sourceType: 'gig'
+        }));
+
         // Tour Dates
         allTours.filter(t => t.bandId === activeBandId).flatMap(t => t.shows).forEach(s => allUnifiedEvents.push({ 
             id: `show-${s.id}`, 
@@ -320,7 +333,7 @@ export const Calendar: React.FC<CalendarProps> = ({
             filtered = filtered.filter(e => e.projectId === projectFilter);
         }
         return filtered;
-    }, [allEvents, allTasks, allReleases, allTours, allFestivals, allFundingApplications, activeBandId, users, typeFilter, projectFilter]);
+    }, [allEvents, allTasks, allReleases, allTours, allGigs, allFestivals, allFundingApplications, activeBandId, users, typeFilter, projectFilter]);
 
     const handleSaveNewEvent = (eventData: Omit<CalendarEvent, 'id' | 'bandId'>) => {
         const newEvent: CalendarEvent = {
@@ -341,6 +354,9 @@ export const Calendar: React.FC<CalendarProps> = ({
                 break;
             case 'task':
                 setTasks(prev => prev.filter(t => t.id !== unifiedEvent.originalId));
+                break;
+            case 'gig':
+                setGigs(prev => prev.filter(g => g.id !== unifiedEvent.originalId));
                 break;
             case 'festival':
                 setFestivals(prev => prev.filter(f => f.id !== unifiedEvent.originalId));

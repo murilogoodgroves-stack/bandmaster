@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { BandmasterIcon } from './icons';
 
 interface LoginScreenProps {
   onLogin: (userId: string, username: string) => void;
@@ -29,7 +28,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       if (user) {
         onLogin(user.id, user.username);
       } else {
-        setError('Usuário ou senha inválidos');
+        setError('Invalid username or password');
         setPassword('');
       }
       setIsLoading(false);
@@ -42,12 +41,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-spotify-green to-purple-500 rounded-full flex items-center justify-center shadow-lg">
+            <div className="w-16 h-16 bg-gradient-to-br from-brand-accent to-purple-600 rounded-full flex items-center justify-center shadow-lg">
               <span className="text-2xl font-bold text-white">🎵</span>
             </div>
           </div>
-          <h1 className="text-4xl font-bold text-white mb-2">Bandmaster</h1>
-          <p className="text-gray-400">Seu Centro de Controle Musical</p>
+          <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">BANDMATE</h1>
+          <p className="text-gray-400">Your Music Management Command Center</p>
         </div>
 
         {/* Login Card */}
@@ -56,14 +55,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             {/* Username */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Nome de Usuário
+                Username
               </label>
               <input
                 type="text"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
-                placeholder="ex: lovnis"
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-spotify-green transition"
+                placeholder="e.g. lovnis"
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-accent transition"
                 disabled={isLoading}
               />
             </div>
@@ -71,14 +70,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             {/* Password */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Senha
+                Password
               </label>
               <input
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-spotify-green transition"
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-accent transition"
                 disabled={isLoading}
               />
             </div>
@@ -94,15 +93,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             <button
               type="submit"
               disabled={isLoading || !username || !password}
-              className="w-full bg-gradient-to-r from-spotify-green to-green-500 hover:from-green-500 hover:to-green-600 text-white font-bold py-3 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-brand-accent hover:bg-brand-accent-dark text-white font-bold py-3 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? 'Conectando...' : 'Entrar'}
+              {isLoading ? 'Signing in...' : 'Sign in'}
             </button>
           </form>
 
           {/* Demo Info */}
           <div className="mt-8 pt-6 border-t border-gray-700">
-            <p className="text-xs text-gray-400 mb-3 font-semibold">CONTAS DE TESTE:</p>
+            <p className="text-xs text-gray-400 mb-3 font-semibold tracking-wider">DEMO ACCOUNTS:</p>
             <div className="space-y-2 text-xs text-gray-500">
               <p>👤 <span className="text-gray-300">lovnis</span> / <span className="text-gray-300">jahrasta</span></p>
               <p>👤 <span className="text-gray-300">giraprodutora</span> / <span className="text-gray-300">jahrasta</span></p>
@@ -114,8 +113,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         {/* Info Footer */}
         <div className="mt-8 text-center">
           <p className="text-gray-400 text-sm">
-            Cada usuário tem seu próprio espaço de trabalho<br/>
-            isolado e seguro para gerenciar sua música.
+            Each member has their own workspace with isolated access to band operations.
           </p>
         </div>
       </div>

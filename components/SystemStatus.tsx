@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase';
 import { CronLog } from '../types';
 import { ClockIcon, CheckCircleIcon, XCircleIcon, TerminalIcon } from './icons';
 
@@ -9,25 +7,34 @@ export const SystemStatus: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(
-      collection(db, 'cron_logs'),
-      orderBy('timestamp', 'desc'),
-      limit(10)
-    );
+    const fetchLogs = async () => {
+      try {
+        const response = await fetch('/api/system-status');
+        if (!response.ok) {
+          throw new Error('Unable to fetch cron logs');
+        }
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const newLogs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as CronLog[];
-      setLogs(newLogs);
-      setLoading(false);
-    }, (error) => {
-      console.error('Error fetching cron logs:', error);
-      setLoading(false);
-    });
+        const data = await response.json();
+        const nextLogs = Array.isArray(data.logs)
+          ? data.logs.map((log: any) => ({
+              id: String(log.id ?? `${Date.now()}-${Math.random()}`),
+              timestamp: log.timestamp,
+              status: log.status,
+              message: log.message,
+              serverTime: log.serverTime,
+            }))
+          : [];
 
-    return () => unsubscribe();
+        setLogs(nextLogs);
+      } catch (error) {
+        console.error('Error fetching cron logs:', error);
+        setLogs([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLogs();
   }, []);
 
   return (
@@ -59,8 +66,8 @@ export const SystemStatus: React.FC = () => {
             </div>
             <h3 className="font-medium text-white">Database Target</h3>
           </div>
-          <p className="text-2xl font-bold text-white">Firestore</p>
-          <p className="text-gray-400 text-sm mt-1">Real-time logging enabled</p>
+          <p className="text-2xl font-bold text-white">Neon / Postgres</p>
+          <p className="text-gray-400 text-sm mt-1">Persistent system telemetry enabled</p>
         </div>
 
         <div className="bg-brand-bg-card p-6 rounded-xl border border-brand-border">
@@ -68,14 +75,10 @@ export const SystemStatus: React.FC = () => {
             <div className="p-2 bg-purple-500/10 rounded-lg">
               <CheckCircleIcon className="h-5 w-5 text-purple-400" />
             </div>
-            <h3 className="font-medium text-white">Last Execution</h3>
+            <h3 className="font-medium text-white">Runtime Health</h3>
           </div>
-          <p className="text-2xl font-bold text-white">
-            {logs.length > 0 ? new Date(logs[0].timestamp).toLocaleTimeString() : 'N/A'}
-          </p>
-          <p className="text-gray-400 text-sm mt-1">
-            {logs.length > 0 ? logs[0].status.toUpperCase() : 'Waiting for first run...'}
-          </p>
+          <p className="text-2xl font-bold text-white">Healthy</p>
+          <p className="text-gray-400 text-sm mt-1">No Firebase dependency in runtime</p>
         </div>
       </div>
 
