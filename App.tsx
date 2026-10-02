@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ensureStorageVersion, makeEqualSplit, resolveValidBandId, resolveValidUserId, sanitizeBandScopedList, validBandIds, STORAGE_VERSION, STORAGE_VERSION_KEY } from './state/appStateIntegrity';
-import { canShowBandSetupPrompt } from './state/appStateHydration';
+import { canShowBandSetupPrompt, shouldUseRemoteState } from './state/appStateHydration';
 import { Dashboard } from './components/Dashboard';
 import { Projects } from './components/Projects';
 import { Calendar } from './components/Calendar';
@@ -574,6 +574,7 @@ const App: React.FC = () => {
   const [isHelpCenterOpen, setIsHelpCenterOpen] = useState(false);
   const [isNewBandModalOpen, setIsNewBandModalOpen] = useState(false);
   const [isHydratingRemoteState, setIsHydratingRemoteState] = useState(true);
+  const [databaseConfigured, setDatabaseConfigured] = useState(false);
   const [editingBandId, setEditingBandId] = useState<string | null>(null);
   const [backgroundTasks, setBackgroundTasks] = useState<BackgroundTask[]>([]);
   
@@ -865,11 +866,31 @@ const App: React.FC = () => {
   }, [appStateSnapshot]);
 
   useEffect(() => {
+    const checkRemoteConfig = async () => {
+      try {
+        const response = await fetch('/api/config');
+        if (!response.ok) {
+          setDatabaseConfigured(false);
+          return;
+        }
+
+        const data = await response.json();
+        setDatabaseConfigured(Boolean(data?.database?.configured));
+      } catch (error) {
+        console.warn('Could not read remote database configuration.', error);
+        setDatabaseConfigured(false);
+      }
+    };
+
+    checkRemoteConfig();
+  }, []);
+
+  useEffect(() => {
     const hydrateFromNeon = async () => {
       setIsHydratingRemoteState(true);
 
       try {
-        if (bands.length > 0 || users.length > 0 || tasks.length > 0) {
+        if (!databaseConfigured) {
           return;
         }
 
@@ -884,28 +905,30 @@ const App: React.FC = () => {
           return;
         }
 
-        if (Array.isArray(payload.bands)) setBands(payload.bands);
-        if (Array.isArray(payload.users)) setUsers(payload.users);
-        if (payload.activeBandId) setActiveBandId(String(payload.activeBandId));
-        if (payload.currentUserId) setCurrentUserId(String(payload.currentUserId));
-        if (Array.isArray(payload.tasks)) setTasks(payload.tasks);
-        if (Array.isArray(payload.projects)) setProjects(payload.projects);
-        if (Array.isArray(payload.events)) setEvents(payload.events);
-        if (Array.isArray(payload.transactions)) setTransactions(payload.transactions);
-        if (Array.isArray(payload.merch)) setMerch(payload.merch);
-        if (Array.isArray(payload.releases)) setReleases(payload.releases);
-        if (Array.isArray(payload.tours)) setTours(payload.tours);
-        if (Array.isArray(payload.gigs)) setGigs(payload.gigs);
-        if (Array.isArray(payload.campaigns)) setCampaigns(payload.campaigns);
-        if (Array.isArray(payload.media)) setMedia(payload.media);
-        if (Array.isArray(payload.articles)) setArticles(payload.articles);
-        if (Array.isArray(payload.searchCache)) setSearchCache(payload.searchCache);
-        if (payload.bandSettingsMap && typeof payload.bandSettingsMap === 'object') setBandSettingsMap(payload.bandSettingsMap as Record<string, BandSettings>);
-        if (payload.cashOnHandMap && typeof payload.cashOnHandMap === 'object') setCashOnHandMap(payload.cashOnHandMap as Record<string, number>);
-        if (payload.splitsMap && typeof payload.splitsMap === 'object') setSplitsMap(payload.splitsMap as Record<string, Record<string, number>>);
-        if (payload.bandBioMap && typeof payload.bandBioMap === 'object') setBandBioMap(payload.bandBioMap as Record<string, string>);
-        if (payload.epkPhotoIdMap && typeof payload.epkPhotoIdMap === 'object') setEpkPhotoIdMap(payload.epkPhotoIdMap as Record<string, string>);
-        if (payload.epkVideoIdMap && typeof payload.epkVideoIdMap === 'object') setEpkVideoIdMap(payload.epkVideoIdMap as Record<string, string>);
+        if (shouldUseRemoteState(bands.length > 0 || users.length > 0 || tasks.length > 0, databaseConfigured, true)) {
+          if (Array.isArray(payload.bands)) setBands(payload.bands);
+          if (Array.isArray(payload.users)) setUsers(payload.users);
+          if (payload.activeBandId) setActiveBandId(String(payload.activeBandId));
+          if (payload.currentUserId) setCurrentUserId(String(payload.currentUserId));
+          if (Array.isArray(payload.tasks)) setTasks(payload.tasks);
+          if (Array.isArray(payload.projects)) setProjects(payload.projects);
+          if (Array.isArray(payload.events)) setEvents(payload.events);
+          if (Array.isArray(payload.transactions)) setTransactions(payload.transactions);
+          if (Array.isArray(payload.merch)) setMerch(payload.merch);
+          if (Array.isArray(payload.releases)) setReleases(payload.releases);
+          if (Array.isArray(payload.tours)) setTours(payload.tours);
+          if (Array.isArray(payload.gigs)) setGigs(payload.gigs);
+          if (Array.isArray(payload.campaigns)) setCampaigns(payload.campaigns);
+          if (Array.isArray(payload.media)) setMedia(payload.media);
+          if (Array.isArray(payload.articles)) setArticles(payload.articles);
+          if (Array.isArray(payload.searchCache)) setSearchCache(payload.searchCache);
+          if (payload.bandSettingsMap && typeof payload.bandSettingsMap === 'object') setBandSettingsMap(payload.bandSettingsMap as Record<string, BandSettings>);
+          if (payload.cashOnHandMap && typeof payload.cashOnHandMap === 'object') setCashOnHandMap(payload.cashOnHandMap as Record<string, number>);
+          if (payload.splitsMap && typeof payload.splitsMap === 'object') setSplitsMap(payload.splitsMap as Record<string, Record<string, number>>);
+          if (payload.bandBioMap && typeof payload.bandBioMap === 'object') setBandBioMap(payload.bandBioMap as Record<string, string>);
+          if (payload.epkPhotoIdMap && typeof payload.epkPhotoIdMap === 'object') setEpkPhotoIdMap(payload.epkPhotoIdMap as Record<string, string>);
+          if (payload.epkVideoIdMap && typeof payload.epkVideoIdMap === 'object') setEpkVideoIdMap(payload.epkVideoIdMap as Record<string, string>);
+        }
       } catch (error) {
         console.warn('Could not hydrate app state from Neon.', error);
       } finally {
@@ -914,7 +937,7 @@ const App: React.FC = () => {
     };
 
     hydrateFromNeon();
-  }, [bands.length, users.length, tasks.length, setBands, setUsers, setActiveBandId, setCurrentUserId, setTasks, setProjects, setEvents, setTransactions, setMerch, setReleases, setTours, setGigs, setCampaigns, setMedia, setArticles, setSearchCache, setBandSettingsMap, setCashOnHandMap, setSplitsMap, setBandBioMap, setEpkPhotoIdMap, setEpkVideoIdMap]);
+  }, [databaseConfigured, bands.length, users.length, tasks.length, setBands, setUsers, setActiveBandId, setCurrentUserId, setTasks, setProjects, setEvents, setTransactions, setMerch, setReleases, setTours, setGigs, setCampaigns, setMedia, setArticles, setSearchCache, setBandSettingsMap, setCashOnHandMap, setSplitsMap, setBandBioMap, setEpkPhotoIdMap, setEpkVideoIdMap]);
   
   const saveSearchResults = useCallback((searchTerm: string, source: string, results: any[]) => {
     setSearchCache(prev => {
