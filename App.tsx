@@ -656,6 +656,7 @@ const App: React.FC = () => {
   const [isNewBandModalOpen, setIsNewBandModalOpen] = useState(false);
   const [isHydratingRemoteState, setIsHydratingRemoteState] = useState(true);
   const [databaseConfigured, setDatabaseConfigured] = useState(false);
+  const [hasHydratedRemoteState, setHasHydratedRemoteState] = useState(false);
   const [editingBandId, setEditingBandId] = useState<string | null>(null);
   const [backgroundTasks, setBackgroundTasks] = useState<BackgroundTask[]>([]);
   const [globalUploadStatus, setGlobalUploadStatus] = useState<string | null>(null);
@@ -970,25 +971,27 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const hydrateFromNeon = async () => {
+      if (!databaseConfigured || hasHydratedRemoteState) {
+        return;
+      }
+
       setIsHydratingRemoteState(true);
 
       try {
-        if (!databaseConfigured) {
-          return;
-        }
-
         const response = await fetch(`/api/app-state?key=${encodeURIComponent(APP_STATE_KEY)}`);
         if (!response.ok) {
+          setHasHydratedRemoteState(true);
           return;
         }
 
         const data = await response.json();
         const payload = data?.payload;
         if (!payload || typeof payload !== 'object') {
+          setHasHydratedRemoteState(true);
           return;
         }
 
-        if (shouldUseRemoteState(bands.length > 0 || users.length > 0 || tasks.length > 0, databaseConfigured, true)) {
+        if (shouldUseRemoteState(true, databaseConfigured, true)) {
           if (Array.isArray(payload.bands)) setBands(payload.bands);
           if (Array.isArray(payload.users)) setUsers(payload.users);
           if (payload.activeBandId) setActiveBandId(String(payload.activeBandId));
@@ -1015,12 +1018,13 @@ const App: React.FC = () => {
       } catch (error) {
         console.warn('Could not hydrate app state from Neon.', error);
       } finally {
+        setHasHydratedRemoteState(true);
         setIsHydratingRemoteState(false);
       }
     };
 
     hydrateFromNeon();
-  }, [databaseConfigured, bands.length, users.length, tasks.length, setBands, setUsers, setActiveBandId, setCurrentUserId, setTasks, setProjects, setEvents, setTransactions, setMerch, setReleases, setTours, setGigs, setCampaigns, setMedia, setArticles, setSearchCache, setBandSettingsMap, setCashOnHandMap, setSplitsMap, setBandBioMap, setEpkPhotoIdMap, setEpkVideoIdMap]);
+  }, [databaseConfigured, hasHydratedRemoteState, setBands, setUsers, setActiveBandId, setCurrentUserId, setTasks, setProjects, setEvents, setTransactions, setMerch, setReleases, setTours, setGigs, setCampaigns, setMedia, setArticles, setSearchCache, setBandSettingsMap, setCashOnHandMap, setSplitsMap, setBandBioMap, setEpkPhotoIdMap, setEpkVideoIdMap]);
   
   const saveSearchResults = useCallback((searchTerm: string, source: string, results: any[]) => {
     setSearchCache(prev => {

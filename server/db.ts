@@ -3,21 +3,58 @@ import pkg from 'pg';
 import type { CronLog } from '../types';
 const { Pool } = pkg;
 
-const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+const getEnvValue = (...keys: string[]) => {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return '';
+};
 
-const hasLegacyDbConfig = Boolean(
-  process.env.DB_HOST && process.env.DB_NAME && process.env.DB_USER && process.env.DB_PASSWORD
+const getDatabaseConnectionString = () => getEnvValue(
+  'DATABASE_URL',
+  'POSTGRES_URL',
+  'POSTGRES_PRISMA_URL',
+  'NEON_DATABASE_URL',
+  'DATABASE_URL_UNPOOLED',
+  'POSTGRES_URL_NON_POOLING',
+  'VITE_DATABASE_URL',
+  'VITE_POSTGRES_URL'
 );
+
+const getLegacyDbConfig = () => Boolean(
+  getEnvValue('DB_HOST') && getEnvValue('DB_NAME') && getEnvValue('DB_USER') && getEnvValue('DB_PASSWORD')
+) || Boolean(
+  getEnvValue('PGHOST') && getEnvValue('PGDATABASE') && getEnvValue('PGUSER') && getEnvValue('PGPASSWORD')
+);
+
+export const resolveDatabaseSource = () => {
+  if (getEnvValue('DATABASE_URL')) return 'DATABASE_URL';
+  if (getEnvValue('POSTGRES_URL')) return 'POSTGRES_URL';
+  if (getEnvValue('POSTGRES_PRISMA_URL')) return 'POSTGRES_PRISMA_URL';
+  if (getEnvValue('NEON_DATABASE_URL')) return 'NEON_DATABASE_URL';
+  if (getEnvValue('DATABASE_URL_UNPOOLED')) return 'DATABASE_URL_UNPOOLED';
+  if (getEnvValue('POSTGRES_URL_NON_POOLING')) return 'POSTGRES_URL_NON_POOLING';
+  if (getEnvValue('VITE_DATABASE_URL')) return 'VITE_DATABASE_URL';
+  if (getEnvValue('VITE_POSTGRES_URL')) return 'VITE_POSTGRES_URL';
+  if (getLegacyDbConfig()) return 'DB_*';
+  return 'missing';
+};
+
+const connectionString = getDatabaseConnectionString();
+const hasLegacyDbConfig = getLegacyDbConfig();
 
 const poolConfig = connectionString
   ? { connectionString, ssl: connectionString.includes('localhost') ? false : { rejectUnauthorized: false } }
   : hasLegacyDbConfig
     ? {
-        user: process.env.DB_USER,
-        host: process.env.DB_HOST,
-        database: process.env.DB_NAME,
-        password: process.env.DB_PASSWORD,
-        port: Number(process.env.DB_PORT || 5432),
+        user: getEnvValue('DB_USER', 'PGUSER', 'POSTGRES_USER'),
+        host: getEnvValue('DB_HOST', 'PGHOST', 'POSTGRES_HOST'),
+        database: getEnvValue('DB_NAME', 'PGDATABASE', 'POSTGRES_DATABASE'),
+        password: getEnvValue('DB_PASSWORD', 'PGPASSWORD', 'POSTGRES_PASSWORD'),
+        port: Number(getEnvValue('DB_PORT', 'PGPORT', 'POSTGRES_PORT') || '5432'),
         ssl: { rejectUnauthorized: false }
       }
     : null;
@@ -188,7 +225,7 @@ export const loadAppStateSnapshot = async (key: string): Promise<Record<string, 
 
 export const getDatabaseStatus = () => ({
   configured: isDatabaseConfigured,
-  source: connectionString ? 'DATABASE_URL' : hasLegacyDbConfig ? 'DB_*' : 'missing'
+  source: resolveDatabaseSource()
 });
 
 export default pool;
