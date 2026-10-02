@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ensureStorageVersion, makeEqualSplit, resolveValidBandId, resolveValidUserId, sanitizeBandScopedList, validBandIds, STORAGE_VERSION, STORAGE_VERSION_KEY } from './state/appStateIntegrity';
 import { canShowBandSetupPrompt, shouldUseRemoteState } from './state/appStateHydration';
 import { Dashboard } from './components/Dashboard';
@@ -16,9 +16,9 @@ import { Resources } from './components/Resources';
 import { Sidebar } from './components/Sidebar';
 import { Settings } from './components/Settings';
 import { AiAssistant } from './components/AiAssistant';
-import { BotIcon } from './components/icons';
+import { BotIcon, UploadIcon } from './components/icons';
 import type { Page, EmailCampaign, BandProfile, User, Task, ProductionProject, CalendarEvent, Transaction, MerchItem, Release, Tour, Setlist, Collaborator, PressContact, LabelContact, RadioContact, Venue, OpeningSlotOpportunity, FanContact, Gig, FundingApplication, Festival, BandGoal, MediaAsset, RoyaltyStatement, Song, Budget, LockedDate, PublishedArticle, SaasSubscription, Promoter, ReportConfig, Invoice, BandSettings, CashHolding, MemberTransaction, SavedFundingOpportunity, SavedResidency, EmailTemplate } from './types';
-import { APP_PAGES, TaskStatus, TaskPriority, EventType } from './types';
+import { APP_PAGES, TaskStatus, TaskPriority, EventType, ContactTier } from './types';
 import { Production } from './components/Production';
 import { Funding } from './components/Funding';
 import { Festivals } from './components/Festivals';
@@ -567,6 +567,87 @@ const normalizePage = (value?: string | null): Page => {
   return APP_PAGES.includes(candidate as Page) ? (candidate as Page) : 'dashboard';
 };
 
+const readFileAsDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result || ''));
+  reader.onerror = () => reject(new Error('Could not read the selected file.'));
+  reader.readAsDataURL(file);
+});
+
+const readFileAsText = (file: File) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result || ''));
+  reader.onerror = () => reject(new Error('Could not read the selected file as text.'));
+  reader.readAsText(file);
+});
+
+const persistUploadedFile = async (file: File) => {
+  const dataUrl = await readFileAsDataUrl(file);
+
+  try {
+    const response = await fetch('/api/media/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileName: file.name, dataUrl, kind: 'general-intake' }),
+    });
+
+    const result = await response.json();
+    if (!response.ok || result.status !== 'ok') {
+      throw new Error(result?.message || 'Server upload failed');
+    }
+
+    const uploadedUrl = result.path ? `${window.location.origin}${result.path}` : dataUrl;
+    return {
+      url: uploadedUrl,
+      storageMode: result.storageMode || 'server-local',
+      contentType: result.contentType || file.type || 'application/octet-stream',
+    };
+  } catch (error) {
+    console.warn('Server-side file intake unavailable; saving file locally in browser memory instead.', error);
+    return {
+      url: dataUrl,
+      storageMode: 'browser' as const,
+      contentType: file.type || 'application/octet-stream',
+    };
+  }
+};
+
+const extractEmail = (value: string) => {
+  const match = value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return match ? match[0].trim() : '';
+};
+
+const parseCsvLikeRows = (text: string) => {
+  if (!text.trim()) return [];
+  return text
+    .split(/\r?\n/)
+    .map(line => line.split(/[\t,;|]/).map(cell => cell.trim()).filter(Boolean))
+    .filter(row => row.length > 0 && (row.some(cell => /@/.test(cell)) || row.some(cell => /name|email|label|station|outlet|contact|city|country/i.test(cell))));
+};
+
+const classifyUpload = (file: File, text: string) => {
+  const nameLower = `${file.name} ${text}`.toLowerCase();
+  if (/\.(csv|tsv|txt)$/i.test(file.name) || /(mailing|newsletter|fan list|lead list|contacts|subscribers)/i.test(nameLower)) {
+    return 'mailing-list';
+  }
+  if (/(label|record label|artists? manager|imprint|label list)/i.test(nameLower) || /^label/i.test(nameLower)) {
+    return 'label-list';
+  }
+  if (/(radio|station|dj|music director|playlist)/i.test(nameLower)) {
+    return 'radio-list';
+  }
+  if (/(press|journalist|outlet|publication|media|writer)/i.test(nameLower)) {
+    return 'press-list';
+  }
+  if (/(invoice|receipt|expense|bank|cash|revenue|profit|p&l|ledger|financial|budget)/i.test(nameLower) || /(amount|total|invoice|expense)/i.test(text)) {
+    return 'financial';
+  }
+  if (/\.(png|jpe?g|gif|webp|bmp)$/i.test(file.name) || /^data:image\//.test(file.type || '')) {
+    return 'media';
+  }
+  return 'document';
+};
+
 const App: React.FC = () => {
   // Fix: Initialize page state by splitting query params to ensure deep links work correctly on refresh
   const [page, setPage] = useState<Page>(() => normalizePage(window.location.hash.substring(1)));
@@ -577,6 +658,8 @@ const App: React.FC = () => {
   const [databaseConfigured, setDatabaseConfigured] = useState(false);
   const [editingBandId, setEditingBandId] = useState<string | null>(null);
   const [backgroundTasks, setBackgroundTasks] = useState<BackgroundTask[]>([]);
+  const [globalUploadStatus, setGlobalUploadStatus] = useState<string | null>(null);
+  const globalUploadInputRef = useRef<HTMLInputElement | null>(null);
   
   // --- Centralized State Management ---
   // Core
@@ -1130,7 +1213,6 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleStartTask = (e: Event) => {
       const { id, name, estimatedDuration } = (e as CustomEvent).detail;
-      // Use a default duration if not provided
       setBackgroundTasks(prev => [...prev, { id, name, startTime: Date.now(), estimatedDuration: estimatedDuration || 30 }]);
     };
 
@@ -1147,6 +1229,175 @@ const App: React.FC = () => {
       window.removeEventListener('end-task', handleEndTask);
     };
   }, []);
+
+  const handleGlobalUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) {
+      return;
+    }
+
+    const targetBandId = resolvedActiveBandId || activeBandId || bands[0]?.id || 'default-band';
+    setGlobalUploadStatus('Saving and categorizing uploads...');
+
+    try {
+      for (const file of files) {
+        const text = await readFileAsText(file).catch(() => '');
+        const kind = classifyUpload(file, text);
+        const uploaded = await persistUploadedFile(file);
+
+        const asset: MediaAsset = {
+          id: `media-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          name: file.name,
+          type: kind === 'media' ? 'Photo' : 'Link',
+          location: 'Universal Intake',
+          folderPath: uploaded.url,
+          tags: [kind, 'imported', 'persistent'],
+          imageDataUrl: kind === 'media' ? uploaded.url : undefined,
+          storageMode: uploaded.storageMode,
+          assetPath: uploaded.url,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          bandId: targetBandId,
+        };
+
+        setMedia(prev => [asset, ...prev]);
+
+        if (kind === 'mailing-list' || kind === 'press-list' || kind === 'radio-list' || kind === 'label-list') {
+          const rows = parseCsvLikeRows(text || file.name);
+          const records: Array<{ name: string; email: string; labelName?: string; stationName?: string; outlet?: string; source: 'csv' | 'paste'; bandId: string }> = [];
+
+          for (const row of rows) {
+            const emailFound = row.find((cell) => extractEmail(cell));
+            const email = emailFound ? extractEmail(emailFound) : '';
+            if (!email) continue;
+
+            const nameCell = row.find((cell) => !/@/.test(cell) && !/email|name|label|station|outlet|city|country|website/i.test(cell));
+            const name = (nameCell || email.split('@')[0].replace(/[._-]/g, ' ')).trim() || 'Imported Contact';
+            let contact: { name: string; email: string; labelName?: string; stationName?: string; outlet?: string; source: 'csv' | 'paste'; bandId: string } | null = null;
+
+            if (kind === 'label-list') {
+              contact = {
+                name,
+                email,
+                labelName: row.find((cell) => /label|imprint|company|record/i.test(cell)) || 'Imported Label',
+                source: 'csv',
+                bandId: targetBandId,
+              };
+            } else if (kind === 'radio-list') {
+              contact = {
+                name,
+                email,
+                stationName: row.find((cell) => /radio|station|fm|playlist|show/i.test(cell)) || 'Imported Station',
+                source: 'csv',
+                bandId: targetBandId,
+              };
+            } else if (kind === 'press-list') {
+              contact = {
+                name,
+                email,
+                outlet: row.find((cell) => /press|outlet|publication|journal|magazine|blog/i.test(cell)) || 'Imported Outlet',
+                source: 'csv',
+                bandId: targetBandId,
+              };
+            } else {
+              contact = {
+                name,
+                email,
+                source: 'csv',
+                bandId: targetBandId,
+              };
+            }
+
+            if (contact) {
+              records.push(contact);
+            }
+          }
+
+          const dedupe = (value: string) => value.trim().toLowerCase();
+
+          if (kind === 'label-list') {
+            const nextItems = records.filter(record => record.email && !labelContacts.some(existing => dedupe(existing.email) === dedupe(record.email) && existing.bandId === targetBandId)).map(record => ({
+              id: `label-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+              name: record.name,
+              labelName: record.labelName || 'Imported Label',
+              email: record.email,
+              country: '',
+              city: '',
+              genres: '',
+              submissionUrl: '',
+              notes: 'Imported from universal upload intake.',
+              website: '',
+              role: '',
+              phone: '',
+              address: '',
+              source: 'csv' as const,
+              lastVerifiedAt: new Date().toISOString(),
+              socials: {},
+              bandId: targetBandId,
+            }));
+            if (nextItems.length) setLabelContacts(prev => [...prev, ...nextItems]);
+          }
+
+          if (kind === 'radio-list') {
+            const nextItems = records.filter(record => record.email && !radioContacts.some(existing => dedupe(existing.email) === dedupe(record.email) && existing.bandId === targetBandId)).map(record => ({
+              id: `radio-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+              name: record.name,
+              stationName: record.stationName || 'Imported Station',
+              email: record.email,
+              country: '',
+              city: '',
+              genres: '',
+              submissionUrl: '',
+              notes: 'Imported from universal upload intake.',
+              bandId: targetBandId,
+            }));
+            if (nextItems.length) setRadioContacts(prev => [...prev, ...nextItems]);
+          }
+
+          if (kind === 'press-list') {
+            const nextItems = records.filter(record => record.email && !pressContacts.some(existing => dedupe(existing.email) === dedupe(record.email) && existing.bandId === targetBandId)).map(record => ({
+              id: `press-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+              name: record.name,
+              outlet: record.outlet || 'Imported Outlet',
+              email: record.email,
+              tier: ContactTier.C,
+              socials: '',
+              notes: 'Imported from universal upload intake.',
+              country: '',
+              city: '',
+              sourceUrl: '',
+              bandId: targetBandId,
+            }));
+            if (nextItems.length) setPressContacts(prev => [...prev, ...nextItems]);
+          }
+
+          if (kind === 'mailing-list') {
+            const nextItems = records.filter(record => record.email && !fanContacts.some(existing => dedupe(existing.email) === dedupe(record.email) && existing.bandId === targetBandId)).map(record => ({
+              id: `fan-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+              name: record.name,
+              email: record.email,
+              origin: 'CSV Import' as const,
+              consentStatus: 'pending_review' as const,
+              dateAdded: new Date().toISOString(),
+              bandId: targetBandId,
+            }));
+            if (nextItems.length) setFanContacts(prev => [...prev, ...nextItems]);
+          }
+        }
+      }
+
+      const fileCount = files.length;
+      setGlobalUploadStatus(`${fileCount} file${fileCount > 1 ? 's' : ''} saved and classified successfully.`);
+    } catch (error) {
+      console.error('Global upload intake failed:', error);
+      setGlobalUploadStatus('Upload failed. Please try again with a different file.');
+    } finally {
+      if (globalUploadInputRef.current) {
+        globalUploadInputRef.current.value = '';
+      }
+      window.setTimeout(() => setGlobalUploadStatus(null), 3500);
+    }
+  }, [activeBandId, bands, fanContacts, labelContacts, pressContacts, radioContacts, resolvedActiveBandId, setFanContacts, setLabelContacts, setMedia, setPressContacts, setRadioContacts]);
 
   // Effect to handle scheduled campaigns & follow-ups
   useEffect(() => {
@@ -1357,6 +1608,30 @@ const App: React.FC = () => {
         currentUser={currentUser || users[0] || null}
         setUsers={setUsers}
       />
+      <div className="fixed bottom-24 right-6 z-50 flex flex-col items-end gap-2">
+        {globalUploadStatus && (
+          <div className="max-w-xs rounded-lg border border-brand-accent/40 bg-brand-bg-card/95 px-3 py-2 text-xs text-gray-100 shadow-xl backdrop-blur-sm">
+            {globalUploadStatus}
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => globalUploadInputRef.current?.click()}
+          className="flex items-center justify-center h-14 w-14 rounded-full bg-brand-accent text-white shadow-lg transition hover:scale-105 hover:bg-brand-accent-dark"
+          aria-label="Upload a file to the universal intake"
+          title="Upload files to the universal intake"
+        >
+          <UploadIcon className="h-6 w-6" />
+        </button>
+        <input
+          ref={globalUploadInputRef}
+          type="file"
+          accept=".csv,.txt,.pdf,.doc,.docx,.xlsx,.xls,.json,.png,.jpg,.jpeg,.gif,.webp,.mp4,.mov,.wav,.mp3"
+          multiple
+          onChange={handleGlobalUpload}
+          className="hidden"
+        />
+      </div>
       <main className={`flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative ${backgroundTasks.length > 0 ? 'pt-16' : ''} bg-brand-bg-content m-4 rounded-lg`}>
         <BackgroundTaskBar tasks={backgroundTasks} />
         {renderPage()}

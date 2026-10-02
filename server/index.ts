@@ -32,9 +32,9 @@ async function startServer() {
         return res.status(400).json({ status: 'error', message: 'A file name and base64 payload are required.' });
       }
 
-      const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/.exec(dataUrl);
+      const match = /^data:([^;]+);base64,(.*)$/.exec(dataUrl);
       if (!match) {
-        return res.status(400).json({ status: 'error', message: 'Only base64 image uploads are accepted by the local media storage endpoint.' });
+        return res.status(400).json({ status: 'error', message: 'Only data URL uploads are accepted by the local storage endpoint.' });
       }
 
       const contentType = match[1];
