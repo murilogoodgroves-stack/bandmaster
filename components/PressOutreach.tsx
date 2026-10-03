@@ -6,6 +6,7 @@ import { PlusIcon, TrashIcon, CopyIcon, UploadCloudIcon, SearchIcon, ExternalLin
 import { generateEmail, EmailTone, EmailLength, findPressContacts } from '../services/aiService';
 import { Tip } from './Tip';
 import useLocalStorage from '../hooks/useLocalStorage';
+import { getUserScopedItem, removeUserScopedItem } from '../state/userStorageScope';
 
 interface AiEmailModalProps {
     contacts: PressContact[];
@@ -20,6 +21,7 @@ const AiEmailModal: React.FC<AiEmailModalProps> = ({ contacts, onClose, bandProf
     const [generatedEmail, setGeneratedEmail] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
+    const [error, setError] = useState('');
     
     const isBulk = contacts.length > 1;
     const targetDisplay = isBulk ? `${contacts.length} contacts` : contacts[0]?.name;
@@ -29,15 +31,27 @@ const AiEmailModal: React.FC<AiEmailModalProps> = ({ contacts, onClose, bandProf
         if (!prompt) return;
         setIsLoading(true);
         setGeneratedEmail('');
-        const result = await generateEmail(prompt, contacts[0]?.name || '', tone, length, bandProfile, isBulk);
-        setGeneratedEmail(result);
-        setIsLoading(false);
+        setError('');
+        try {
+            const result = await generateEmail(prompt, contacts[0]?.name || '', tone, length, bandProfile, isBulk);
+            setGeneratedEmail(result);
+        } catch (error) {
+            console.error('Could not generate the press email:', error);
+            setError(error instanceof Error ? error.message : 'The email could not be generated. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    const handleCopy = () => {
-        navigator.clipboard.writeText(generatedEmail);
-        setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 2000);
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(generatedEmail);
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
+        } catch (error) {
+            console.error('Could not copy the press email:', error);
+            setError('Could not access the clipboard. Select and copy the generated text manually.');
+        }
     }
 
     return (
@@ -72,6 +86,7 @@ const AiEmailModal: React.FC<AiEmailModalProps> = ({ contacts, onClose, bandProf
                     {generatedEmail && (
                         <textarea readOnly value={generatedEmail} className="w-full h-full bg-transparent text-gray-300 border-none focus:ring-0 resize-none"></textarea>
                     )}
+                    {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
                 </div>
 
                 <div className="flex justify-end gap-4 mt-4 flex-shrink-0">
@@ -256,7 +271,7 @@ export const PressOutreach: React.FC<PressOutreachProps> = ({ bands, activeBandI
 
   useEffect(() => {
     // Check for AI suggestion data on mount
-    const suggestionDataRaw = localStorage.getItem('wizard_suggestion_data');
+    const suggestionDataRaw = getUserScopedItem('wizard_suggestion_data');
     if (suggestionDataRaw) {
         try {
             const foundContacts: FoundPressContact[] = JSON.parse(suggestionDataRaw);
@@ -272,7 +287,7 @@ export const PressOutreach: React.FC<PressOutreachProps> = ({ bands, activeBandI
                     setNotification({ message: `Added ${addedCount} new contacts from your dashboard suggestion!`, type: 'success' });
                 }
                 // Only remove if it was processed successfully
-                localStorage.removeItem('wizard_suggestion_data');
+                removeUserScopedItem('wizard_suggestion_data');
             }
         } catch (e) {
             console.error("Could not parse AI suggestion data for Press Outreach", e);

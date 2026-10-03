@@ -15,6 +15,7 @@ manual-release/
 .env
 .env.*
 server/.env
+/uploads/
 
 # Editor directories and files
 .vscode/*

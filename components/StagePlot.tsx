@@ -142,6 +142,7 @@ const TechRiderGenerator: React.FC<{ users: User[], bands: BandProfile[], active
 
     const [generatedRider, setGeneratedRider] = useState('');
     const [isCopied, setIsCopied] = useState(false);
+    const [copyError, setCopyError] = useState('');
 
     const handleGenerateRider = () => {
         const inputListText = inputList.map(item => `| ${item.channel.padEnd(10)} | ${item.instrument.padEnd(15)} | ${item.mic_di.padEnd(20)} | ${item.stand.padEnd(10)} |`).join('\n');
@@ -191,10 +192,16 @@ Thank you for your cooperation!
         setGeneratedRider(riderText);
     };
 
-    const handleCopyRider = () => {
-        navigator.clipboard.writeText(generatedRider);
-        setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 2000);
+    const handleCopyRider = async () => {
+        try {
+            await navigator.clipboard.writeText(generatedRider);
+            setCopyError('');
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
+        } catch (error) {
+            console.error('Could not copy the technical rider:', error);
+            setCopyError('Could not access the clipboard. Select and copy the rider manually.');
+        }
     };
     
     const handleInputListChange = (id: number, field: keyof InputListItem, value: string) => {
@@ -260,6 +267,7 @@ Thank you for your cooperation!
             <div className="bg-brand-bg-card p-6 rounded-xl">
                 <h2 className="text-2xl font-bold mb-4">2. Generated Rider</h2>
                 <textarea readOnly value={generatedRider} className="w-full h-96 bg-brand-bg-content p-3 rounded-lg text-sm text-gray-300 font-mono" />
+                {copyError && <p role="alert" className="text-sm text-red-300 mt-2">{copyError}</p>}
                 {generatedRider && (
                     <button onClick={handleCopyRider} className="w-full mt-4 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg">
                         <CopyIcon className="w-5 h-5 mr-2" />

@@ -2,6 +2,9 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { User, BandProfile, BandSettings } from '../types';
 import { PlusIcon, TrashIcon, EditIcon, AlertTriangleIcon, DownloadIcon, UploadIcon, SaveIcon, SlashIcon } from './icons';
 import { getAPIUsageStats, getAPIUsageLogs } from '../services/aiService';
+import { getUserScopedItem, setUserScopedItem } from '../state/userStorageScope';
+import { removeClientStoredSecrets } from '../state/snapshotSecurity';
+import { bandBackupListKeys, bandBackupMapKeys, parseBandBackup, type BandBackup } from '../state/bandBackup';
 
 interface SettingsProps {
     activeBandId: string;
@@ -32,6 +35,13 @@ const getUserAvatarUrl = (user: Pick<User, 'avatar' | 'email' | 'name'>) => {
     }
     const seed = (user.email || user.name || 'bandmate-user').trim() || 'bandmate-user';
     return `https://i.pravatar.cc/150?u=${encodeURIComponent(seed)}`;
+};
+
+const sanitizeBandSettings = (settings: unknown, bandId: string) => {
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return settings;
+    const sanitized = removeClientStoredSecrets({ bandSettingsMap: { [bandId]: settings } }).bandSettingsMap;
+    if (!sanitized || typeof sanitized !== 'object' || Array.isArray(sanitized)) return settings;
+    return (sanitized as Record<string, unknown>)[bandId];
 };
 
 const readImageFile = (file: File | null, onSuccess: (dataUrl: string) => void) => {
@@ -66,7 +76,8 @@ const InviteMemberModal: React.FC<{
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
       <div className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-md">
-        <h2 className="text-2xl font-bold mb-4">Invite New Member</h2>
+        <h2 className="text-2xl font-bold mb-4">Add Member Profile</h2>
+        <p className="mb-4 text-sm text-amber-200">This creates a profile in this account only. It does not send an invitation or grant another person access.</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="flex items-center justify-center mb-2">
             <label className="relative group cursor-pointer">
@@ -90,7 +101,7 @@ const InviteMemberModal: React.FC<{
           </select>
           <div className="flex justify-end gap-4 pt-4">
             <button type="button" onClick={onClose} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Cancel</button>
-            <button type="submit" className="bg-spotify-green hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg">Send Invite</button>
+            <button type="submit" className="bg-spotify-green hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg">Add Profile</button>
           </div>
         </form>
       </div>
@@ -122,11 +133,12 @@ const ResetConfirmModal: React.FC<{ onClose: () => void; onConfirm: () => void; 
     </div>
 );
 
-const ImportOptionsModal: React.FC<{ onClose: () => void; onOverwrite: () => void; onImportNew: () => void; }> = ({ onClose, onOverwrite, onImportNew }) => (
+const ImportOptionsModal: React.FC<{ onClose: () => void; onOverwrite: () => void; onImportNew: () => void; error?: string; }> = ({ onClose, onOverwrite, onImportNew, error }) => (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
         <div className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-md">
             <h2 className="text-2xl font-bold mb-4">Import Options</h2>
             <p className="text-gray-300 mb-6">How would you like to import this data?</p>
+            {error && <p role="alert" className="mb-4 rounded-lg border border-red-500/40 bg-red-900/20 p-3 text-sm text-red-200">{error}</p>}
             <div className="space-y-4">
                  <button onClick={onOverwrite} className="w-full text-left bg-blue-800 hover:bg-blue-700 p-4 rounded-lg">
                     <h3 className="font-bold">Overwrite Current Band</h3>
@@ -196,22 +208,10 @@ export const Settings: React.FC<SettingsProps> = ({ activeBandId, bands, setBand
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
     const [apiUsageStats, setApiUsageStats] = useState<any>(null);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
-    const [mailchimpStatus, setMailchimpStatus] = useState('Not configured');
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    const [importedData, setImportedData] = useState<any>(null);
+    const [importedData, setImportedData] = useState<BandBackup | null>(null);
+    const [backupStatus, setBackupStatus] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const listDataKeys = [
-        'tasks', 'events', 'transactions', 'budgets', 'contacts', 'merch', 'releases',
-        'tours', 'setlists', 'collaborators', 'lockedDates', 'fundingApplications',
-        'festivals', 'goals', 'media', 'saasSubscriptions', 'publishedArticles',
-        'royalties', 'productionSongs', 'productionProjects', 'gigs', 'venues',
-        'promoters', 'labelContacts', 'radioContacts', 'fanContacts', 'campaigns', 'invoices',
-    ];
-    
-    const mapDataKeys = [
-        'cashOnHandMap', 'splitsMap', 'bandBiosMap', 'epkPhotoIdsMap', 'epkVideoIdsMap'
-    ];
 
     const currentUser = users[0];
 
@@ -226,10 +226,6 @@ export const Settings: React.FC<SettingsProps> = ({ activeBandId, bands, setBand
 
     const handleSettingsChange = (field: keyof BandSettings, value: string) => {
         setBandSettings(prev => ({ ...prev, [field]: value }));
-        if (field === 'mailchimpApiKey' || field === 'mailchimpServerPrefix' || field === 'mailchimpAudienceId') {
-            const hasApi = Boolean((field === 'mailchimpApiKey' ? value : bandSettings.mailchimpApiKey) && (field === 'mailchimpServerPrefix' ? value : bandSettings.mailchimpServerPrefix) && (field === 'mailchimpAudienceId' ? value : bandSettings.mailchimpAudienceId));
-            setMailchimpStatus(hasApi ? 'Ready for newsletter sends' : 'Not configured');
-        }
     };
 
     const handleSaveUser = (updatedUser: User) => {
@@ -267,159 +263,192 @@ export const Settings: React.FC<SettingsProps> = ({ activeBandId, bands, setBand
     };
     
     const handleExportData = () => {
-        const bandData: { [key: string]: any } = {};
-        
-        // Export list-based data
-        listDataKeys.forEach(key => {
-            const allItems = JSON.parse(localStorage.getItem(key) || '[]');
-            if (Array.isArray(allItems)) {
-                bandData[key] = allItems.filter((item: any) => item.bandId === activeBandId);
-            } else {
-                bandData[key] = [];
-            }
-        });
-        
-        // Export map-based data (singletons per band)
-        mapDataKeys.forEach(key => {
-            const mapData = JSON.parse(localStorage.getItem(key) || '{}');
-            bandData[key] = mapData[activeBandId]; // Export only this band's value
-        });
+        try {
+            const bandData: Record<string, unknown> = {};
 
-        const allBands = JSON.parse(localStorage.getItem('bands') || '[]');
-        const bandProfile = allBands.find((b: any) => b.id === activeBandId);
-        const exportObj = { exportFormatVersion: 2, bandProfile, data: bandData };
-        
-        const dataStr = JSON.stringify(exportObj, null, 2);
-        const dataBlob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(dataBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${bandProfile.name.replace(/\s/g, '_')}_backup_${new Date().toISOString().substring(0,10)}.json`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+            bandBackupListKeys.forEach(key => {
+                const stored = getUserScopedItem(key);
+                const allItems: unknown = stored ? JSON.parse(stored) : [];
+                if (!Array.isArray(allItems)) {
+                    throw new Error(`Could not export "${key}" because its saved data is not a list.`);
+                }
+                bandData[key] = allItems.filter((item: any) => item?.bandId === activeBandId);
+            });
+
+            bandBackupMapKeys.forEach(key => {
+                const stored = getUserScopedItem(key);
+                const values: unknown = stored ? JSON.parse(stored) : {};
+                if (!values || typeof values !== 'object' || Array.isArray(values)) {
+                    throw new Error(`Could not export "${key}" because its saved data is invalid.`);
+                }
+                const mapValue = (values as Record<string, unknown>)[activeBandId];
+                bandData[key] = key === 'bandSettingsMap'
+                    ? sanitizeBandSettings(mapValue, activeBandId)
+                    : mapValue;
+            });
+
+            const exportObj = { exportFormatVersion: 2, bandProfile: activeBand, data: bandData };
+            const dataBlob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${activeBand.name.replace(/\s/g, '_')}_backup_${new Date().toISOString().substring(0, 10)}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            setBackupStatus('Band backup downloaded. Keep it in a secure location.');
+        } catch (error) {
+            console.error('Band backup export failed:', error);
+            setBackupStatus(error instanceof Error ? error.message : 'Could not create the band backup.');
+        }
     };
     
     const handleImportFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        setBackupStatus('');
+        if (file.size > 10 * 1024 * 1024) {
+            setBackupStatus('Backup files must be 10 MB or smaller.');
+            e.target.value = '';
+            return;
+        }
         const reader = new FileReader();
         reader.onload = (event) => {
             try {
-                const data = JSON.parse(event.target?.result as string);
-                if (!data.bandProfile || !data.data) {
-                    throw new Error("Invalid or corrupted backup file.");
-                }
-                setImportedData(data);
+                const parsed: unknown = JSON.parse(String(event.target?.result || ''));
+                setImportedData(parseBandBackup(parsed));
                 setIsImportModalOpen(true);
             } catch (error) {
-                alert(error instanceof Error ? error.message : "Failed to read backup file.");
+                setBackupStatus(error instanceof Error ? error.message : 'Failed to read backup file.');
             }
         };
+        reader.onerror = () => setBackupStatus('Could not read the selected backup file.');
         reader.readAsText(file);
         e.target.value = '';
     };
 
     const handleImportOverwrite = () => {
         if (!importedData) return;
-        const { data } = importedData;
-        
-        // Overwrite list data
-        listDataKeys.forEach(key => {
-            const storedValue = localStorage.getItem(key);
-            let allItems = storedValue ? JSON.parse(storedValue) : [];
-            if (Array.isArray(allItems)) {
-                const otherBandsItems = allItems.filter((item: any) => item.bandId !== activeBandId);
-                const newItemsForBand = (data[key] || []).map((item: any) => ({ ...item, bandId: activeBandId }));
-                localStorage.setItem(key, JSON.stringify([...otherBandsItems, ...newItemsForBand]));
+        try {
+            const { data } = importedData;
+            const listUpdates = bandBackupListKeys.map(key => {
+                const stored = getUserScopedItem(key);
+                const current: unknown = stored ? JSON.parse(stored) : [];
+                if (!Array.isArray(current)) throw new Error(`Saved "${key}" data is invalid; import was not applied.`);
+                const otherBands = current.filter((item: any) => item?.bandId !== activeBandId);
+                const importedItems = (data[key] as Record<string, unknown>[] | undefined) || [];
+                return [key, [...otherBands, ...importedItems.map(item => ({ ...item, bandId: activeBandId }))]] as const;
+            });
+            const mapUpdates = bandBackupMapKeys.map(key => {
+                const stored = getUserScopedItem(key);
+                const current: unknown = stored ? JSON.parse(stored) : {};
+                if (!current || typeof current !== 'object' || Array.isArray(current)) {
+                    throw new Error(`Saved "${key}" data is invalid; import was not applied.`);
+                }
+                const next = { ...(current as Record<string, unknown>) };
+                if (data[key] !== undefined) next[activeBandId] = data[key];
+                if (key === 'bandSettingsMap') next[activeBandId] = sanitizeBandSettings(next[activeBandId], activeBandId);
+                return [key, next] as const;
+            });
+            const bandsValue = getUserScopedItem('bands');
+            const allBands: unknown = bandsValue ? JSON.parse(bandsValue) : [];
+            if (!Array.isArray(allBands) || !allBands.some((band: any) => band?.id === activeBandId)) {
+                throw new Error('The active band is missing; import was not applied.');
             }
-        });
-        
-        // Overwrite map data
-        mapDataKeys.forEach(key => {
-            const storedValue = localStorage.getItem(key);
-            let map = storedValue ? JSON.parse(storedValue) : {};
-            if (data[key] !== undefined) {
-                map[activeBandId] = data[key];
-                localStorage.setItem(key, JSON.stringify(map));
-            }
-        });
+            const updatedBands = allBands.map((band: any) => band.id === activeBandId
+                ? { ...importedData.bandProfile, id: activeBandId }
+                : band);
 
-        const allBands = JSON.parse(localStorage.getItem('bands') || '[]');
-        const updatedBands = allBands.map((b: any) => b.id === activeBandId ? { ...importedData.bandProfile, id: activeBandId } : b);
-        localStorage.setItem('bands', JSON.stringify(updatedBands));
-        alert("Data successfully overwritten. The app will now reload.");
-        window.location.reload();
+            listUpdates.forEach(([key, value]) => setUserScopedItem(key, JSON.stringify(value)));
+            mapUpdates.forEach(([key, value]) => setUserScopedItem(key, JSON.stringify(value)));
+            setUserScopedItem('bands', JSON.stringify(updatedBands));
+            setBackupStatus('Backup imported into this band. The app will refresh its state and sync to the cloud when configured.');
+            setIsImportModalOpen(false);
+            setImportedData(null);
+        } catch (error) {
+            console.error('Band backup import failed:', error);
+            setBackupStatus(error instanceof Error ? error.message : 'Could not import this band backup.');
+        }
     };
 
     const handleImportAsNew = () => {
         if (!importedData) return;
-        const { bandProfile, data } = importedData;
-        const newBandId = `b-${Date.now()}`;
-        const newBandProfile = { ...bandProfile, id: newBandId, name: `${bandProfile.name} (Imported)`};
-        const allBands = JSON.parse(localStorage.getItem('bands') || '[]');
-        localStorage.setItem('bands', JSON.stringify([...allBands, newBandProfile]));
-        
-        // Import list data
-        listDataKeys.forEach(key => {
-            const storedValue = localStorage.getItem(key);
-            let allItems = storedValue ? JSON.parse(storedValue) : [];
-            if (Array.isArray(allItems)) {
-                const newItemsForBand = (data[key] || []).map((item: any) => ({ ...item, bandId: newBandId }));
-                localStorage.setItem(key, JSON.stringify([...allItems, ...newItemsForBand]));
-            }
-        });
-        
-        // Import map data
-        mapDataKeys.forEach(key => {
-            const storedValue = localStorage.getItem(key);
-            let map = storedValue ? JSON.parse(storedValue) : {};
-            if (data[key] !== undefined) {
-                map[newBandId] = data[key];
-                localStorage.setItem(key, JSON.stringify(map));
-            }
-        });
+        try {
+            const { bandProfile, data } = importedData;
+            const newBandId = `b-${Date.now()}`;
+            const newBandProfile = { ...bandProfile, id: newBandId, name: `${bandProfile.name} (Imported)` };
+            const bandsValue = getUserScopedItem('bands');
+            const allBands: unknown = bandsValue ? JSON.parse(bandsValue) : [];
+            if (!Array.isArray(allBands)) throw new Error('Saved band profiles are invalid; import was not applied.');
 
-        localStorage.setItem('activeBandId', JSON.stringify(newBandId));
-        alert(`Successfully imported "${newBandProfile.name}". The app will now reload.`);
-        window.location.reload();
+            const listUpdates = bandBackupListKeys.map(key => {
+                const stored = getUserScopedItem(key);
+                const current: unknown = stored ? JSON.parse(stored) : [];
+                if (!Array.isArray(current)) throw new Error(`Saved "${key}" data is invalid; import was not applied.`);
+                const importedItems = (data[key] as Record<string, unknown>[] | undefined) || [];
+                return [key, [...current, ...importedItems.map(item => ({ ...item, bandId: newBandId }))]] as const;
+            });
+            const mapUpdates = bandBackupMapKeys.map(key => {
+                const stored = getUserScopedItem(key);
+                const current: unknown = stored ? JSON.parse(stored) : {};
+                if (!current || typeof current !== 'object' || Array.isArray(current)) {
+                    throw new Error(`Saved "${key}" data is invalid; import was not applied.`);
+                }
+                const next = { ...(current as Record<string, unknown>) };
+                if (data[key] !== undefined) next[newBandId] = data[key];
+                if (key === 'bandSettingsMap') next[newBandId] = sanitizeBandSettings(next[newBandId], newBandId);
+                return [key, next] as const;
+            });
+
+            listUpdates.forEach(([key, value]) => setUserScopedItem(key, JSON.stringify(value)));
+            mapUpdates.forEach(([key, value]) => setUserScopedItem(key, JSON.stringify(value)));
+            setUserScopedItem('bands', JSON.stringify([...allBands, newBandProfile]));
+            setUserScopedItem('activeBandId', JSON.stringify(newBandId));
+            setBackupStatus(`"${newBandProfile.name}" imported. The app will refresh its state and sync to the cloud when configured.`);
+            setIsImportModalOpen(false);
+            setImportedData(null);
+        } catch (error) {
+            console.error('Band backup import failed:', error);
+            setBackupStatus(error instanceof Error ? error.message : 'Could not import this band backup.');
+        }
     };
     
     const handleResetData = () => {
-        // Reset list data
-        listDataKeys.forEach(key => {
-            const storedValue = localStorage.getItem(key);
-            if (!storedValue) return;
-            let allItems = JSON.parse(storedValue);
-            if (Array.isArray(allItems)) {
-                const remainingItems = allItems.filter((item: any) => item.bandId !== activeBandId);
-                localStorage.setItem(key, JSON.stringify(remainingItems));
-            }
-        });
-        
-        // Reset map data
-        mapDataKeys.forEach(key => {
-            const storedValue = localStorage.getItem(key);
-            if (!storedValue) return;
-            let map = JSON.parse(storedValue);
-            delete map[activeBandId];
-            localStorage.setItem(key, JSON.stringify(map));
-        });
+        try {
+            const listUpdates = bandBackupListKeys.map(key => {
+                const stored = getUserScopedItem(key);
+                const current: unknown = stored ? JSON.parse(stored) : [];
+                if (!Array.isArray(current)) throw new Error(`Saved "${key}" data is invalid; reset was not applied.`);
+                return [key, current.filter((item: any) => item?.bandId !== activeBandId)] as const;
+            });
+            const mapUpdates = bandBackupMapKeys.map(key => {
+                const stored = getUserScopedItem(key);
+                const current: unknown = stored ? JSON.parse(stored) : {};
+                if (!current || typeof current !== 'object' || Array.isArray(current)) {
+                    throw new Error(`Saved "${key}" data is invalid; reset was not applied.`);
+                }
+                const next = { ...(current as Record<string, unknown>) };
+                delete next[activeBandId];
+                return [key, next] as const;
+            });
+            const remainingBands = bands.filter(band => band.id !== activeBandId);
+            const nextBands = remainingBands.length > 0 ? remainingBands : bands;
+            const nextActiveBandId = remainingBands[0]?.id || activeBandId;
 
-        // Ensure state is updated before reload
-        setIsResetModalOpen(false);
-        
-        // Update React state to reflect localStorage changes
-        const updatedBands = bands.filter(b => b.id !== activeBandId);
-        if (updatedBands.length > 0) {
-            setBands(updatedBands);
-            localStorage.setItem('bands', JSON.stringify(updatedBands));
-            localStorage.setItem('activeBandId', JSON.stringify(updatedBands[0].id));
+            listUpdates.forEach(([key, value]) => setUserScopedItem(key, JSON.stringify(value)));
+            mapUpdates.forEach(([key, value]) => setUserScopedItem(key, JSON.stringify(value)));
+            if (remainingBands.length > 0) {
+                setBands(nextBands);
+                setUserScopedItem('bands', JSON.stringify(nextBands));
+                setUserScopedItem('activeBandId', JSON.stringify(nextActiveBandId));
+            }
+            setIsResetModalOpen(false);
+            setBackupStatus('Band data reset. The app state and cloud snapshot will update automatically when configured.');
+        } catch (error) {
+            console.error('Band data reset failed:', error);
+            setBackupStatus(error instanceof Error ? error.message : 'Could not reset band data.');
         }
-        
-        alert("All data for this band has been reset. The app will now reload.");
-        window.location.reload();
     };
 
     if (!activeBand) {
@@ -435,6 +464,7 @@ export const Settings: React.FC<SettingsProps> = ({ activeBandId, bands, setBand
                     Create Restore Point (Backup)
                 </button>
             </div>
+            {backupStatus && <p role="status" className="mb-6 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-sm text-blue-200">{backupStatus}</p>}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-8">
@@ -489,18 +519,11 @@ export const Settings: React.FC<SettingsProps> = ({ activeBandId, bands, setBand
                             <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-900/50 p-4">
                                 <div>
                                     <p className="font-bold text-white">Status</p>
-                                    <p className="text-sm text-gray-400">{mailchimpStatus}</p>
+                                    <p className="text-sm text-gray-400">Delivery unavailable</p>
                                 </div>
-                                <span className="text-xs uppercase tracking-wide text-purple-300">Free API compatible</span>
+                                <span className="text-xs uppercase tracking-wide text-amber-300">Not enabled</span>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <input type="text" value={bandSettings.mailchimpApiKey || ''} onChange={e => handleSettingsChange('mailchimpApiKey', e.target.value)} placeholder="Mailchimp API key" className="w-full bg-gray-700 p-3 rounded-lg" />
-                                <input type="text" value={bandSettings.mailchimpServerPrefix || ''} onChange={e => handleSettingsChange('mailchimpServerPrefix', e.target.value)} placeholder="Server prefix (e.g. us1)" className="w-full bg-gray-700 p-3 rounded-lg" />
-                                <input type="text" value={bandSettings.mailchimpAudienceId || ''} onChange={e => handleSettingsChange('mailchimpAudienceId', e.target.value)} placeholder="Audience / list ID" className="w-full bg-gray-700 p-3 rounded-lg" />
-                                <input type="text" value={bandSettings.mailchimpFromName || ''} onChange={e => handleSettingsChange('mailchimpFromName', e.target.value)} placeholder="From name" className="w-full bg-gray-700 p-3 rounded-lg" />
-                            </div>
-                            <input type="email" value={bandSettings.mailchimpReplyTo || ''} onChange={e => handleSettingsChange('mailchimpReplyTo', e.target.value)} placeholder="Reply-to email" className="w-full bg-gray-700 p-3 rounded-lg" />
-                            <p className="text-sm text-gray-400">Mailchimp settings are stored safely in the band profile and used by the release newsletter system. The API key is never committed to the repo.</p>
+                            <p className="text-sm text-gray-400">Campaign delivery is disabled. Do not paste provider API keys into this app; delivery will be re-enabled after server-side secret storage, recipient verification, and consent controls are implemented.</p>
                         </div>
                     </SettingsCard>
                     <div className="bg-gray-800 rounded-xl shadow-lg border-2 border-red-800/50">
@@ -598,13 +621,13 @@ export const Settings: React.FC<SettingsProps> = ({ activeBandId, bands, setBand
                                 }
                             })}
                         </div>
-                        <button onClick={() => setIsInviteModalOpen(true)} className="w-full mt-4 flex items-center justify-center bg-purple-600/50 hover:bg-purple-600/80 text-white font-bold py-2 px-4 rounded-lg"><PlusIcon className="w-5 h-5 mr-2"/>Invite Member</button>
+                        <button onClick={() => setIsInviteModalOpen(true)} className="w-full mt-4 flex items-center justify-center bg-purple-600/50 hover:bg-purple-600/80 text-white font-bold py-2 px-4 rounded-lg"><PlusIcon className="w-5 h-5 mr-2"/>Add Member Profile</button>
                     </SettingsCard>
                 </div>
             </div>
             {isInviteModalOpen && <InviteMemberModal onClose={() => setIsInviteModalOpen(false)} onInvite={handleInviteMember} />}
             {isResetModalOpen && <ResetConfirmModal onClose={() => setIsResetModalOpen(false)} onConfirm={handleResetData} onDownloadBackup={handleExportData} />}
-            {isImportModalOpen && <ImportOptionsModal onClose={() => setIsImportModalOpen(false)} onOverwrite={handleImportOverwrite} onImportNew={handleImportAsNew} />}
+            {isImportModalOpen && <ImportOptionsModal onClose={() => setIsImportModalOpen(false)} onOverwrite={handleImportOverwrite} onImportNew={handleImportAsNew} error={backupStatus} />}
         </div>
     );
 };

@@ -5,11 +5,6 @@ import { initialInvoices, initialTransactions, initialBandSettings } from '../da
 import { DownloadIcon, EyeIcon } from './icons';
 
 const InvoiceDetailModal: React.FC<{ invoice: Invoice, onClose: () => void, bandSettings: BandSettings }> = ({ invoice, onClose, bandSettings }) => {
-    const showNotification = (message: string) => {
-        // A real implementation would show a toast notification
-        alert(message);
-    };
-
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
             <div className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-4xl max-h-[90vh] flex flex-col">
@@ -77,9 +72,9 @@ const InvoiceDetailModal: React.FC<{ invoice: Invoice, onClose: () => void, band
                     </div>
                 </div>
                 <div className="mt-4 flex justify-end">
-                     <button onClick={() => showNotification('In a real app, this would download a PDF of the invoice.')} className="flex items-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">
+                     <button type="button" disabled title="PDF export is not available yet" className="flex items-center bg-gray-700 text-gray-400 font-bold py-2 px-4 rounded-lg cursor-not-allowed">
                         <DownloadIcon className="h-5 w-5 mr-2" />
-                        Download PDF
+                        PDF export unavailable
                     </button>
                 </div>
             </div>
@@ -96,11 +91,6 @@ interface InvoicesProps {
 export const Invoices: React.FC<InvoicesProps> = ({ activeBandId, invoices: allInvoices, bandSettings }) => {
     const invoices = useMemo(() => allInvoices.filter(i => i.bandId === activeBandId), [allInvoices, activeBandId]);
     const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
-
-    const showNotification = (message: string) => {
-        // This is a placeholder for a real toast notification system
-        alert(message);
-    };
 
     return (
         <div>
@@ -134,7 +124,7 @@ export const Invoices: React.FC<InvoicesProps> = ({ activeBandId, invoices: allI
                                     <td className="p-3 font-bold text-right">${invoice.total.toFixed(2)}</td>
                                     <td className="p-3 text-right flex gap-2 justify-end">
                                         <button onClick={() => setViewingInvoice(invoice)} className="p-1 rounded-full hover:bg-gray-600" title="View Details"><EyeIcon className="w-5 h-5 text-gray-400"/></button>
-                                        <button onClick={() => showNotification('In a real app, this would download a PDF.')} className="p-1 rounded-full hover:bg-gray-600" title="Download PDF"><DownloadIcon className="w-5 h-5 text-blue-400"/></button>
+                                        <button type="button" disabled className="p-1 rounded-full cursor-not-allowed" title="PDF export is not available yet" aria-label="PDF export unavailable"><DownloadIcon className="w-5 h-5 text-gray-500"/></button>
                                     </td>
                                 </tr>
                             ))}

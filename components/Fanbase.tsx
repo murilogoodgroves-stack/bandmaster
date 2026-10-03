@@ -2,72 +2,8 @@ import React, { useState, useRef, useMemo } from 'react';
 import useLocalStorage from '../hooks/useLocalStorage';
 import type { FanContact, ContactConsentStatus } from '../types';
 import { initialFanContacts } from '../data/initialData';
-import { PlusIcon, TrashIcon, UploadCloudIcon, CodeIcon, UsersIcon, SearchIcon, CopyIcon, EditIcon, SaveIcon, SlashIcon } from './icons';
+import { PlusIcon, TrashIcon, UploadCloudIcon, UsersIcon, SearchIcon, EditIcon, SaveIcon, SlashIcon } from './icons';
 import { Tip } from './Tip';
-
-// Website Integration Modal
-const WebsiteIntegrationModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-    const [isCopied, setIsCopied] = useState(false);
-    const codeSnippet = `<!-- BandHQ Fan Signup Form -->
-<style>
-  #bandhq-signup-form { font-family: sans-serif; max-width: 320px; }
-  #bandhq-signup-form input { width: 100%; padding: 8px; margin-bottom: 8px; box-sizing: border-box; }
-  #bandhq-signup-form button { width: 100%; padding: 10px; background-color: #1DB954; color: white; border: none; cursor: pointer; }
-</style>
-<form id="bandhq-signup-form">
-  <h3>Join our Mailing List!</h3>
-  <input type="email" id="bandhq-email" placeholder="Your email" required>
-  <input type="text" id="bandhq-name" placeholder="Your name (optional)">
-  <button type="submit">Subscribe</button>
-</form>
-<script>
-  document.getElementById('bandhq-signup-form').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const email = document.getElementById('bandhq-email').value;
-    const name = document.getElementById('bandhq-name').value;
-    const newSubscriber = { name, email, origin: 'Website Signup', dateAdded: new Date().toISOString() };
-    
-    try {
-      let subscribers = JSON.parse(localStorage.getItem('bandhq-subscribers') || '[]');
-      if (!subscribers.find(s => s.email === email)) {
-        subscribers.push(newSubscriber);
-        localStorage.setItem('bandhq-subscribers', JSON.stringify(subscribers));
-        alert('Thanks for subscribing!');
-      } else {
-        alert('You are already subscribed!');
-      }
-      document.getElementById('bandhq-signup-form').reset();
-    } catch (error) {
-      console.error('BandHQ Signup Error:', error);
-      alert('Could not subscribe. Please try again later.');
-    }
-  });
-<\/script>`;
-
-    const handleCopy = () => {
-        navigator.clipboard.writeText(codeSnippet);
-        setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 2000);
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
-            <div className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-2xl">
-                <h2 className="text-2xl font-bold mb-4">Website Integration</h2>
-                <p className="text-sm text-gray-400 mb-4">Copy and paste this HTML snippet into your band's website to start collecting emails. New signups will be saved in the browser's local storage. You can then use the "Sync from Website" button in the app to import them.</p>
-                <div className="bg-gray-900 p-4 rounded-lg max-h-64 overflow-y-auto">
-                    <pre><code className="text-xs text-gray-300">{codeSnippet}</code></pre>
-                </div>
-                <div className="flex justify-end gap-4 mt-4">
-                    <button onClick={handleCopy} className="flex items-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">
-                        <CopyIcon className="w-4 h-4 mr-2" /> {isCopied ? 'Copied!' : 'Copy Code'}
-                    </button>
-                    <button onClick={onClose} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Close</button>
-                </div>
-            </div>
-        </div>
-    );
-};
 
 interface FanbaseProps {
     activeBandId: string;
@@ -80,6 +16,7 @@ export const Fanbase: React.FC<FanbaseProps> = ({ activeBandId, fanContacts: all
     const fanContacts = useMemo(() => allFanContacts.filter(f => f.bandId === activeBandId), [allFanContacts, activeBandId]);
     
     const [showForm, setShowForm] = useState(false);
+    const [showTip, setShowTip] = useState(true);
     const [newContact, setNewContact] = useState<Omit<FanContact, 'id' | 'dateAdded' | 'bandId'>>({
         name: '',
         email: '',
@@ -88,7 +25,6 @@ export const Fanbase: React.FC<FanbaseProps> = ({ activeBandId, fanContacts: all
         consentDate: undefined,
     });
     const [notification, setNotification] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
-    const [showWebsiteModal, setShowWebsiteModal] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [originFilter, setOriginFilter] = useState('All');
@@ -217,43 +153,6 @@ export const Fanbase: React.FC<FanbaseProps> = ({ activeBandId, fanContacts: all
         reader.readAsText(file);
     };
     
-    const handleWebsiteSync = () => {
-        try {
-            const websiteSubsRaw = localStorage.getItem('bandhq-subscribers');
-            if (!websiteSubsRaw) {
-                showNotification("No website subscribers found in local storage. Make sure your form is working.", 'error');
-                return;
-            }
-            const websiteSubs = JSON.parse(websiteSubsRaw);
-            const existingEmails = new Set(fanContacts.map(c => c.email.toLowerCase()));
-            let newCount = 0;
-
-            const newFans: FanContact[] = websiteSubs.map((sub: any) => {
-                if(sub.email && !existingEmails.has(sub.email.toLowerCase())) {
-                    newCount++;
-                    return {
-                        id: `web-${Date.now()}-${sub.email}`,
-                        name: sub.name || '',
-                        email: sub.email,
-                        origin: 'Website Signup',
-                        consentStatus: 'pending_review',
-                        dateAdded: sub.dateAdded || new Date().toISOString(),
-                        bandId: activeBandId,
-                    }
-                }
-                return null;
-            }).filter(Boolean);
-
-            if (newFans.length > 0) {
-                setFanContacts(prev => [...prev, ...newFans]);
-            }
-            showNotification(`Synced ${newCount} new subscribers from your website. These are held in pending review until consent is confirmed for newsletter sends.`, 'success');
-        } catch (error) {
-            showNotification("Failed to sync from website. Data might be corrupted.", 'error');
-            console.error("Website Sync Error:", error);
-        }
-    };
-    
     const uniqueOrigins = useMemo(() => {
         const origins = new Set(fanContacts.map(c => c.origin));
         return ['All', ...Array.from(origins)];
@@ -289,7 +188,7 @@ export const Fanbase: React.FC<FanbaseProps> = ({ activeBandId, fanContacts: all
                 </div>
             )}
             
-            <Tip onDismiss={() => {}}>Build your mailing list by adding fans manually, importing a CSV, or integrating a signup form on your website.</Tip>
+            {showTip && <Tip onDismiss={() => setShowTip(false)}>Build your mailing list by adding fans manually, importing a CSV, or integrating a signup form on your website.</Tip>}
 
             {showForm && (
                 <div className="bg-gray-800 p-6 rounded-xl mb-8 shadow-lg">
@@ -324,8 +223,7 @@ export const Fanbase: React.FC<FanbaseProps> = ({ activeBandId, fanContacts: all
                     <div className="flex items-center gap-2">
                         <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".csv" className="hidden" />
                         <button onClick={handleImportClick} className="flex items-center text-sm bg-gray-600 hover:bg-gray-700 py-2 px-3 rounded-lg"><UploadCloudIcon className="h-4 w-4 mr-2" />Import CSV</button>
-                        <button onClick={() => setShowWebsiteModal(true)} className="flex items-center text-sm bg-gray-600 hover:bg-gray-700 py-2 px-3 rounded-lg"><CodeIcon className="h-4 w-4 mr-2" />Website Integration</button>
-                        <button onClick={handleWebsiteSync} className="flex items-center text-sm bg-blue-600 hover:bg-blue-700 py-2 px-3 rounded-lg">Sync from Website</button>
+                        <button type="button" disabled title="A secure public signup endpoint is not available yet" className="flex items-center text-sm bg-gray-700 py-2 px-3 rounded-lg text-gray-400 opacity-70">Website signup unavailable</button>
                     </div>
                 </div>
                  <div className="overflow-x-auto">
@@ -373,7 +271,6 @@ export const Fanbase: React.FC<FanbaseProps> = ({ activeBandId, fanContacts: all
                 {filteredContacts.length === 0 && <p className="text-center text-gray-500 py-8">No fans match your filters.</p>}
             </div>
 
-            {showWebsiteModal && <WebsiteIntegrationModal onClose={() => setShowWebsiteModal(false)} />}
         </div>
     );
 };

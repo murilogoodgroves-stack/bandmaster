@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ensureStorageVersion, makeEqualSplit, resolveValidBandId, resolveValidUserId, sanitizeBandScopedList, validBandIds, STORAGE_VERSION, STORAGE_VERSION_KEY } from './state/appStateIntegrity';
-import { canShowBandSetupPrompt, shouldUseRemoteState } from './state/appStateHydration';
+import { canShowBandSetupPrompt, canSyncRemoteState, shouldUseRemoteState } from './state/appStateHydration';
 import { Dashboard } from './components/Dashboard';
 import { Projects } from './components/Projects';
 import { Calendar } from './components/Calendar';
@@ -43,7 +43,10 @@ import { HelpCenter } from './components/HelpCenter';
 import { UserHintManager } from './components/UserHintManager';
 import { BandMateWizard } from './components/BandMateWizard';
 import { LinksDatabase } from './components/LinksDatabase';
+import { AuthScreen } from './components/AuthScreen';
 import useLocalStorage from './hooks/useLocalStorage';
+import { authenticatedFetch, isSupabaseAuthConfigured, supabaseClient, type Session } from './services/supabaseClient';
+import { setUserStorageScope, setUserScopedItem } from './state/userStorageScope';
 import { 
     initialCampaigns, initialBandProfiles, initialUsers, initialTasks, initialProductionProjects, initialEvents, 
     initialTransactions, initialMerch, initialReleases, initialTours, initialSetlists, initialCollaborators, 
@@ -585,7 +588,7 @@ const persistUploadedFile = async (file: File) => {
   const dataUrl = await readFileAsDataUrl(file);
 
   try {
-    const response = await fetch('/api/media/upload', {
+    const response = await authenticatedFetch('/api/media/upload', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fileName: file.name, dataUrl, kind: 'general-intake' }),
@@ -603,6 +606,9 @@ const persistUploadedFile = async (file: File) => {
       contentType: result.contentType || file.type || 'application/octet-stream',
     };
   } catch (error) {
+    if (import.meta.env.PROD) {
+      throw error;
+    }
     console.warn('Server-side file intake unavailable; saving file locally in browser memory instead.', error);
     return {
       url: dataUrl,
@@ -648,7 +654,7 @@ const classifyUpload = (file: File, text: string) => {
   return 'document';
 };
 
-const App: React.FC = () => {
+const BandmateWorkspace: React.FC = () => {
   // Fix: Initialize page state by splitting query params to ensure deep links work correctly on refresh
   const [page, setPage] = useState<Page>(() => normalizePage(window.location.hash.substring(1)));
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
@@ -656,7 +662,10 @@ const App: React.FC = () => {
   const [isNewBandModalOpen, setIsNewBandModalOpen] = useState(false);
   const [isHydratingRemoteState, setIsHydratingRemoteState] = useState(true);
   const [databaseConfigured, setDatabaseConfigured] = useState(false);
+  const [remoteSyncError, setRemoteSyncError] = useState('');
+  const [hasResolvedRemoteConfig, setHasResolvedRemoteConfig] = useState(false);
   const [hasHydratedRemoteState, setHasHydratedRemoteState] = useState(false);
+  const [remoteSnapshotIsTrusted, setRemoteSnapshotIsTrusted] = useState(false);
   const [editingBandId, setEditingBandId] = useState<string | null>(null);
   const [backgroundTasks, setBackgroundTasks] = useState<BackgroundTask[]>([]);
   const [globalUploadStatus, setGlobalUploadStatus] = useState<string | null>(null);
@@ -755,11 +764,15 @@ const App: React.FC = () => {
 
   useEffect(() => {
     setBandSettingsMap(prev => {
-      const next = { ...prev };
+      const next = Object.fromEntries(Object.entries(prev).map(([bandId, settings]) => {
+        const safeSettings = { ...settings };
+        delete safeSettings.mailchimpApiKey;
+        return [bandId, safeSettings];
+      }));
       bands.forEach((band) => {
         next[band.id] = ensureBandStateIntegrity(band.id, next[band.id], { ...initialBandSettings, issuerName: band.name });
       });
-      return next;
+      return next as Record<string, BandSettings>;
     });
 
     setCashOnHandMap(prev => {
@@ -925,9 +938,13 @@ const App: React.FC = () => {
   ]);
 
   useEffect(() => {
+    if (!canSyncRemoteState(hasResolvedRemoteConfig, databaseConfigured, hasHydratedRemoteState, remoteSnapshotIsTrusted)) {
+      return;
+    }
+
     const handler = setTimeout(async () => {
       try {
-        const response = await fetch('/api/app-state', {
+        const response = await authenticatedFetch('/api/app-state', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -943,11 +960,12 @@ const App: React.FC = () => {
         }
       } catch (error) {
         console.warn('Neon app-state sync failed; local browser storage remains active.', error);
+        setRemoteSyncError('Cloud sync failed. Your changes remain in this browser and are not backed up remotely.');
       }
     }, 1500);
 
     return () => clearTimeout(handler);
-  }, [appStateSnapshot]);
+  }, [appStateSnapshot, databaseConfigured, hasHydratedRemoteState, hasResolvedRemoteConfig, remoteSnapshotIsTrusted]);
 
   useEffect(() => {
     const checkRemoteConfig = async () => {
@@ -955,14 +973,29 @@ const App: React.FC = () => {
         const response = await fetch('/api/config');
         if (!response.ok) {
           setDatabaseConfigured(false);
+          setHasResolvedRemoteConfig(true);
+          setHasHydratedRemoteState(true);
+          setIsHydratingRemoteState(false);
           return;
         }
 
         const data = await response.json();
-        setDatabaseConfigured(Boolean(data?.database?.configured));
+        const isConfigured = Boolean(data?.database?.configured);
+        setDatabaseConfigured(isConfigured);
+        setHasResolvedRemoteConfig(true);
+        if (!isConfigured && isSupabaseAuthConfigured) {
+          setRemoteSyncError('Cloud persistence is not configured. Changes are saved only in this browser.');
+        }
+        if (!isConfigured) {
+          setHasHydratedRemoteState(true);
+          setIsHydratingRemoteState(false);
+        }
       } catch (error) {
         console.warn('Could not read remote database configuration.', error);
         setDatabaseConfigured(false);
+        setHasResolvedRemoteConfig(true);
+        setHasHydratedRemoteState(true);
+        setIsHydratingRemoteState(false);
       }
     };
 
@@ -978,17 +1011,20 @@ const App: React.FC = () => {
       setIsHydratingRemoteState(true);
 
       try {
-        const response = await fetch(`/api/app-state?key=${encodeURIComponent(APP_STATE_KEY)}`);
-        if (!response.ok) {
+        const response = await authenticatedFetch(`/api/app-state?key=${encodeURIComponent(APP_STATE_KEY)}`);
+        if (response.status === 404) {
+          setRemoteSnapshotIsTrusted(true);
           setHasHydratedRemoteState(true);
           return;
+        }
+        if (!response.ok) {
+          throw new Error(`Remote state hydration failed with status ${response.status}.`);
         }
 
         const data = await response.json();
         const payload = data?.payload;
         if (!payload || typeof payload !== 'object') {
-          setHasHydratedRemoteState(true);
-          return;
+          throw new Error('Remote state response did not contain a valid snapshot.');
         }
 
         if (shouldUseRemoteState(true, databaseConfigured, true)) {
@@ -999,14 +1035,35 @@ const App: React.FC = () => {
           if (Array.isArray(payload.tasks)) setTasks(payload.tasks);
           if (Array.isArray(payload.projects)) setProjects(payload.projects);
           if (Array.isArray(payload.events)) setEvents(payload.events);
+          if (Array.isArray(payload.lockedDates)) setLockedDates(payload.lockedDates);
           if (Array.isArray(payload.transactions)) setTransactions(payload.transactions);
+          if (Array.isArray(payload.memberTransactions)) setMemberTransactions(payload.memberTransactions);
+          if (Array.isArray(payload.invoices)) setInvoices(payload.invoices);
+          if (Array.isArray(payload.emailTemplates)) setEmailTemplates(payload.emailTemplates);
+          if (Array.isArray(payload.royalties)) setRoyalties(payload.royalties);
           if (Array.isArray(payload.merch)) setMerch(payload.merch);
+          if (Array.isArray(payload.pressContacts)) setPressContacts(payload.pressContacts);
+          if (Array.isArray(payload.radioContacts)) setRadioContacts(payload.radioContacts);
+          if (Array.isArray(payload.labelContacts)) setLabelContacts(payload.labelContacts);
+          if (Array.isArray(payload.fanContacts)) setFanContacts(payload.fanContacts);
+          if (Array.isArray(payload.promoters)) setPromoters(payload.promoters);
+          if (Array.isArray(payload.venues)) setVenues(payload.venues);
+          if (Array.isArray(payload.openingSlots)) setOpeningSlots(payload.openingSlots);
+          if (Array.isArray(payload.budgets)) setBudgets(payload.budgets);
+          if (Array.isArray(payload.songs)) setSongs(payload.songs);
           if (Array.isArray(payload.releases)) setReleases(payload.releases);
+          if (Array.isArray(payload.setlists)) setSetlists(payload.setlists);
           if (Array.isArray(payload.tours)) setTours(payload.tours);
           if (Array.isArray(payload.gigs)) setGigs(payload.gigs);
           if (Array.isArray(payload.campaigns)) setCampaigns(payload.campaigns);
           if (Array.isArray(payload.media)) setMedia(payload.media);
           if (Array.isArray(payload.articles)) setArticles(payload.articles);
+          if (Array.isArray(payload.goals)) setGoals(payload.goals);
+          if (Array.isArray(payload.fundingApps)) setFundingApps(payload.fundingApps);
+          if (Array.isArray(payload.savedFundingOpps)) setSavedFundingOpps(payload.savedFundingOpps);
+          if (Array.isArray(payload.savedResidencies)) setSavedResidencies(payload.savedResidencies);
+          if (Array.isArray(payload.festivals)) setFestivals(payload.festivals);
+          if (Array.isArray(payload.collaborators)) setCollaborators(payload.collaborators);
           if (Array.isArray(payload.searchCache)) setSearchCache(payload.searchCache);
           if (payload.bandSettingsMap && typeof payload.bandSettingsMap === 'object') setBandSettingsMap(payload.bandSettingsMap as Record<string, BandSettings>);
           if (payload.cashOnHandMap && typeof payload.cashOnHandMap === 'object') setCashOnHandMap(payload.cashOnHandMap as Record<string, number>);
@@ -1014,9 +1071,11 @@ const App: React.FC = () => {
           if (payload.bandBioMap && typeof payload.bandBioMap === 'object') setBandBioMap(payload.bandBioMap as Record<string, string>);
           if (payload.epkPhotoIdMap && typeof payload.epkPhotoIdMap === 'object') setEpkPhotoIdMap(payload.epkPhotoIdMap as Record<string, string>);
           if (payload.epkVideoIdMap && typeof payload.epkVideoIdMap === 'object') setEpkVideoIdMap(payload.epkVideoIdMap as Record<string, string>);
+          setRemoteSnapshotIsTrusted(true);
         }
       } catch (error) {
         console.warn('Could not hydrate app state from Neon.', error);
+        setRemoteSyncError('Could not load the cloud workspace. Cloud sync is paused to avoid overwriting remote data.');
       } finally {
         setHasHydratedRemoteState(true);
         setIsHydratingRemoteState(false);
@@ -1024,7 +1083,7 @@ const App: React.FC = () => {
     };
 
     hydrateFromNeon();
-  }, [databaseConfigured, hasHydratedRemoteState, setBands, setUsers, setActiveBandId, setCurrentUserId, setTasks, setProjects, setEvents, setTransactions, setMerch, setReleases, setTours, setGigs, setCampaigns, setMedia, setArticles, setSearchCache, setBandSettingsMap, setCashOnHandMap, setSplitsMap, setBandBioMap, setEpkPhotoIdMap, setEpkVideoIdMap]);
+  }, [databaseConfigured, hasHydratedRemoteState, setBands, setUsers, setActiveBandId, setCurrentUserId, setTasks, setProjects, setEvents, setLockedDates, setTransactions, setMemberTransactions, setInvoices, setEmailTemplates, setRoyalties, setMerch, setPressContacts, setRadioContacts, setLabelContacts, setFanContacts, setPromoters, setVenues, setOpeningSlots, setBudgets, setSongs, setReleases, setSetlists, setTours, setGigs, setCampaigns, setMedia, setArticles, setGoals, setFundingApps, setSavedFundingOpps, setSavedResidencies, setFestivals, setCollaborators, setSearchCache, setBandSettingsMap, setCashOnHandMap, setSplitsMap, setBandBioMap, setEpkPhotoIdMap, setEpkVideoIdMap]);
   
   const saveSearchResults = useCallback((searchTerm: string, source: string, results: any[]) => {
     setSearchCache(prev => {
@@ -1202,7 +1261,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const meta = PAGE_META[page] || { title: 'Dashboard', summary: 'Band overview and the next move' };
-    window.localStorage.setItem(
+    setUserScopedItem(
       resumeStorageKey,
       JSON.stringify({
         page,
@@ -1403,55 +1462,6 @@ const App: React.FC = () => {
     }
   }, [activeBandId, bands, fanContacts, labelContacts, pressContacts, radioContacts, resolvedActiveBandId, setFanContacts, setLabelContacts, setMedia, setPressContacts, setRadioContacts]);
 
-  // Effect to handle scheduled campaigns & follow-ups
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = new Date();
-      setCampaigns(prevCampaigns => {
-        let campaignsUpdated = false;
-        const updatedCampaigns = prevCampaigns.map(c => {
-          let campaign = { ...c };
-          let hasChanged = false;
-          
-          // Handle initial send
-          if (campaign.status === 'Scheduled' && campaign.scheduledDate && new Date(campaign.scheduledDate) <= now) {
-            hasChanged = true;
-            // Simulate stats on send
-            const openRate = Math.floor(Math.random() * (75 - 25 + 1)) + 25;
-            const clickRate = Math.floor(Math.random() * (openRate * 0.4 - 2 + 1)) + 2;
-            campaign = {
-              ...campaign,
-              status: 'Sent',
-              sentDate: new Date().toISOString(),
-              openRate,
-              clickRate,
-            };
-          }
-          
-          // Handle follow-up send
-          if (campaign.status === 'Sent' && campaign.sentDate && campaign.followUp && !campaign.followUpSentDate) {
-              const sentDate = new Date(campaign.sentDate);
-              // Create a new date object to avoid mutating the original `sentDate`
-              const followUpDate = new Date(sentDate);
-              followUpDate.setDate(followUpDate.getDate() + campaign.followUp.delayDays);
-              if (now >= followUpDate) {
-                  hasChanged = true;
-                  campaign = { ...campaign, followUpSentDate: now.toISOString() };
-              }
-          }
-          
-          if(hasChanged) campaignsUpdated = true;
-          return campaign;
-        });
-        
-        return campaignsUpdated ? updatedCampaigns : prevCampaigns;
-      });
-    }, 30000); // Check every 30 seconds
-
-    return () => clearInterval(interval);
-  }, [setCampaigns]);
-
-
   const renderPage = () => {
     const allProps = { activeBandId, bands, users, setUsers, setBands, emailTemplates, setEmailTemplates };
     
@@ -1599,6 +1609,11 @@ const App: React.FC = () => {
 
   return (
     <div className="flex min-h-screen bg-brand-bg-outer text-gray-200">
+      {remoteSyncError && (
+        <div role="alert" className="fixed bottom-4 left-4 z-[90] max-w-md rounded-lg border border-amber-500/50 bg-amber-950 p-4 text-sm text-amber-100 shadow-xl">
+          {remoteSyncError}
+        </div>
+      )}
       <AIStatusWarning />
       <Sidebar 
         currentPage={page} 
@@ -1673,6 +1688,93 @@ const App: React.FC = () => {
         hasTransactions={transactions.some(item => item.bandId === activeBandId)}
       />
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  const [session, setSession] = useState<Session | null>(null);
+  const [isResolvingSession, setIsResolvingSession] = useState(true);
+  const [sessionError, setSessionError] = useState('');
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+
+  useEffect(() => {
+    if (!supabaseClient) {
+      setUserStorageScope(null);
+      setIsResolvingSession(false);
+      return;
+    }
+
+    let isMounted = true;
+    let authEventReceived = false;
+    const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((event, nextSession) => {
+      authEventReceived = true;
+      setUserStorageScope(nextSession?.user.id || null);
+      setSession(nextSession);
+      if (event === 'PASSWORD_RECOVERY') setIsPasswordRecovery(true);
+      if (event === 'SIGNED_OUT') setIsPasswordRecovery(false);
+      setSessionError('');
+      setIsResolvingSession(false);
+    });
+
+    supabaseClient.auth.getSession().then(({ data, error }) => {
+      if (!isMounted || authEventReceived) return;
+      if (error) {
+        setSessionError(error.message);
+      } else {
+        setUserStorageScope(data.session?.user.id || null);
+        setSession(data.session);
+      }
+      setIsResolvingSession(false);
+    }).catch((error: unknown) => {
+      if (!isMounted || authEventReceived) return;
+      setSessionError(error instanceof Error ? error.message : 'Could not read the sign-in session.');
+      setIsResolvingSession(false);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  if (isResolvingSession) {
+    return <main className="min-h-screen flex items-center justify-center bg-brand-bg-outer text-gray-300">Checking account session…</main>;
+  }
+
+  if (!isSupabaseAuthConfigured) {
+    if (import.meta.env.PROD) return <AuthScreen />;
+    return <BandmateWorkspace />;
+  }
+
+  if (!session) {
+    return (
+      <>
+        {sessionError && <p role="alert" className="fixed left-1/2 top-3 z-[100] -translate-x-1/2 rounded bg-red-900 px-4 py-2 text-sm text-white">{sessionError}</p>}
+        <AuthScreen />
+      </>
+    );
+  }
+
+  if (isPasswordRecovery) {
+    return <AuthScreen passwordRecovery onPasswordUpdated={() => setIsPasswordRecovery(false)} />;
+  }
+
+  return (
+    <>
+      <BandmateWorkspace key={session.user.id} />
+      {sessionError && <p role="alert" className="fixed left-1/2 top-3 z-[100] -translate-x-1/2 rounded bg-red-900 px-4 py-2 text-sm text-white">{sessionError}</p>}
+      <button
+        type="button"
+        onClick={() => {
+          void supabaseClient?.auth.signOut().then(({ error }) => {
+            if (error) setSessionError(`Could not sign out: ${error.message}`);
+          });
+        }}
+        className="fixed right-3 top-3 z-[80] rounded-lg border border-white/20 bg-black/80 px-3 py-2 text-xs text-white hover:bg-black"
+      >
+        Sign out
+      </button>
+    </>
   );
 };
 

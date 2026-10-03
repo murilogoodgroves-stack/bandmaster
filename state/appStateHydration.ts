@@ -13,3 +13,10 @@ export const shouldUseRemoteState = (
 
   return true;
 };
+
+export const canSyncRemoteState = (
+  remoteConfigResolved: boolean,
+  isDatabaseConfigured: boolean,
+  hasHydratedRemoteState: boolean,
+  remoteSnapshotIsTrusted: boolean
+) => remoteConfigResolved && isDatabaseConfigured && hasHydratedRemoteState && remoteSnapshotIsTrusted;

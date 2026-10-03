@@ -19,9 +19,7 @@ const getDatabaseConnectionString = () => getEnvValue(
   'POSTGRES_PRISMA_URL',
   'NEON_DATABASE_URL',
   'DATABASE_URL_UNPOOLED',
-  'POSTGRES_URL_NON_POOLING',
-  'VITE_DATABASE_URL',
-  'VITE_POSTGRES_URL'
+  'POSTGRES_URL_NON_POOLING'
 );
 
 const getLegacyDbConfig = () => Boolean(
@@ -37,8 +35,6 @@ export const resolveDatabaseSource = () => {
   if (getEnvValue('NEON_DATABASE_URL')) return 'NEON_DATABASE_URL';
   if (getEnvValue('DATABASE_URL_UNPOOLED')) return 'DATABASE_URL_UNPOOLED';
   if (getEnvValue('POSTGRES_URL_NON_POOLING')) return 'POSTGRES_URL_NON_POOLING';
-  if (getEnvValue('VITE_DATABASE_URL')) return 'VITE_DATABASE_URL';
-  if (getEnvValue('VITE_POSTGRES_URL')) return 'VITE_POSTGRES_URL';
   if (getLegacyDbConfig()) return 'DB_*';
   return 'missing';
 };
@@ -47,7 +43,7 @@ const connectionString = getDatabaseConnectionString();
 const hasLegacyDbConfig = getLegacyDbConfig();
 
 const poolConfig = connectionString
-  ? { connectionString, ssl: connectionString.includes('localhost') ? false : { rejectUnauthorized: false } }
+  ? { connectionString, ssl: connectionString.includes('localhost') ? false : { rejectUnauthorized: true } }
   : hasLegacyDbConfig
     ? {
         user: getEnvValue('DB_USER', 'PGUSER', 'POSTGRES_USER'),
@@ -55,7 +51,7 @@ const poolConfig = connectionString
         database: getEnvValue('DB_NAME', 'PGDATABASE', 'POSTGRES_DATABASE'),
         password: getEnvValue('DB_PASSWORD', 'PGPASSWORD', 'POSTGRES_PASSWORD'),
         port: Number(getEnvValue('DB_PORT', 'PGPORT', 'POSTGRES_PORT') || '5432'),
-        ssl: { rejectUnauthorized: false }
+        ssl: { rejectUnauthorized: true }
       }
     : null;
 
@@ -94,22 +90,19 @@ export const initializeDatabase = async () => {
   `);
 
   await query(`
-    CREATE TABLE IF NOT EXISTS app_state_snapshots (
-      id SERIAL PRIMARY KEY,
-      key TEXT NOT NULL UNIQUE,
+    CREATE TABLE IF NOT EXISTS user_app_state_snapshots (
+      owner_id TEXT NOT NULL,
+      key TEXT NOT NULL,
       payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      revision BIGINT NOT NULL DEFAULT 1,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (owner_id, key)
     );
   `);
 
   await query(`
     CREATE INDEX IF NOT EXISTS idx_cron_logs_timestamp
     ON cron_logs (timestamp DESC);
-  `);
-
-  await query(`
-    CREATE INDEX IF NOT EXISTS idx_app_state_snapshots_updated_at
-    ON app_state_snapshots (updated_at DESC);
   `);
 
   return true;
@@ -173,54 +166,51 @@ export const getRecentCronLogs = async (limit = 10): Promise<CronLog[]> => {
   }));
 };
 
-export const saveAppStateSnapshot = async (key: string, payload: Record<string, unknown>) => {
+export const saveUserAppStateSnapshot = async (ownerId: string, key: string, payload: Record<string, unknown>) => {
   if (!pool) {
     return null;
   }
-
-  await initializeDatabase();
 
   const result = await query(
     `
-      INSERT INTO app_state_snapshots (key, payload, updated_at)
-      VALUES ($1, $2, NOW())
-      ON CONFLICT (key)
-      DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()
-      RETURNING key, payload, updated_at AS "updatedAt";
+      INSERT INTO user_app_state_snapshots (owner_id, key, payload, updated_at)
+      VALUES ($1, $2, $3, NOW())
+      ON CONFLICT (owner_id, key)
+      DO UPDATE SET
+        payload = EXCLUDED.payload,
+        revision = user_app_state_snapshots.revision + 1,
+        updated_at = NOW()
+      RETURNING owner_id AS "ownerId", key, payload, revision, updated_at AS "updatedAt";
     `,
-    [key, payload ?? {}]
+    [ownerId, key, payload]
   );
 
-  const row = result.rows[0];
-  if (!row) {
-    return null;
-  }
-
-  return {
-    key: row.key,
-    payload: row.payload,
-    updatedAt: row.updatedAt,
-  };
+  return result.rows[0] ?? null;
 };
 
-export const loadAppStateSnapshot = async (key: string): Promise<Record<string, unknown> | null> => {
+export const loadUserAppStateSnapshot = async (ownerId: string, key: string): Promise<Record<string, unknown> | null> => {
   if (!pool) {
     return null;
   }
-
-  await initializeDatabase();
 
   const result = await query(
     `
       SELECT payload
-      FROM app_state_snapshots
-      WHERE key = $1
+      FROM user_app_state_snapshots
+      WHERE owner_id = $1 AND key = $2
       LIMIT 1;
     `,
-    [key]
+    [ownerId, key]
   );
 
   return result.rowCount ? (result.rows[0].payload as Record<string, unknown>) : null;
+};
+
+export const deleteUserAppStateSnapshot = async (ownerId: string, key: string) => {
+  if (!pool) {
+    return;
+  }
+  await query('DELETE FROM user_app_state_snapshots WHERE owner_id = $1 AND key = $2;', [ownerId, key]);
 };
 
 export const getDatabaseStatus = () => ({

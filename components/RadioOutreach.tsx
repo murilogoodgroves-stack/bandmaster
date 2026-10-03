@@ -2,7 +2,7 @@
 
 
 
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import useLocalStorage from '../hooks/useLocalStorage';
 import type { RadioContact, RadioOpportunity, BandProfile, LastSearchParams, PressContact } from '../types';
 import { ContactTier } from '../types';
@@ -19,25 +19,35 @@ const AiEmailModal: React.FC<{ contact: PressContact, onClose: () => void, bandP
     const [generatedEmail, setGeneratedEmail] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
+    const [error, setError] = useState('');
 
     const handleGenerate = async () => {
         if (!prompt) return;
         setIsLoading(true);
         setGeneratedEmail('');
-        const result = await generateEmail(prompt, contact.name, tone, length, bandProfile, false);
-        setGeneratedEmail(result);
-        setIsLoading(false);
+        setError('');
+        try {
+            const result = await generateEmail(prompt, contact.name, tone, length, bandProfile, false);
+            setGeneratedEmail(result);
+        } catch (error) {
+            console.error('Could not generate the radio pitch:', error);
+            setError(error instanceof Error ? error.message : 'The pitch could not be generated. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    const handleCopy = () => {
-        navigator.clipboard.writeText(generatedEmail);
-        setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 2000);
-    }
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(generatedEmail);
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
+        } catch (error) {
+            console.error('Could not copy the radio pitch:', error);
+            setError('Could not access the clipboard. Select and copy the generated text manually.');
+        }
+    };
     
-    React.useEffect(() => { handleGenerate() }, []);
-    React.useEffect(() => { handleGenerate() }, [tone, length]);
-
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
             <div className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-2xl max-h-[90vh] flex flex-col">
@@ -47,11 +57,12 @@ const AiEmailModal: React.FC<{ contact: PressContact, onClose: () => void, bandP
                     <select value={length} onChange={e => setLength(e.target.value as EmailLength)} className="w-full bg-gray-700 p-2 rounded-lg text-sm"><option>Brief</option><option>Standard</option><option>Detailed</option></select>
                 </div>
                 <button onClick={handleGenerate} disabled={isLoading} className="w-full bg-spotify-green hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg disabled:bg-gray-600">
-                    {isLoading ? 'Regenerating...' : 'Regenerate'}
+                    {isLoading ? 'Generating...' : generatedEmail ? 'Regenerate' : 'Generate draft'}
                 </button>
                 <div className="mt-4 flex-grow overflow-y-auto bg-gray-900 rounded-lg p-4">
                     {isLoading && <div className="text-center p-8 text-gray-400">AI is writing...</div>}
                     {generatedEmail && <textarea readOnly value={generatedEmail} className="w-full h-full bg-transparent text-gray-300 border-none focus:ring-0 resize-y"></textarea>}
+                    {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
                 </div>
                 <div className="flex justify-end gap-4 mt-4 flex-shrink-0">
                     {generatedEmail && <button onClick={handleCopy} className="flex items-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg"><CopyIcon className="w-4 h-4 mr-2"/> {isCopied ? 'Copied!' : 'Copy Text'}</button>}

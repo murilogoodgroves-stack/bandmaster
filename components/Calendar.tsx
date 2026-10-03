@@ -33,6 +33,11 @@ const eventTypeColors: Record<EventType, string> = {
     [EventType.FundingDeadline]: 'bg-teal-500',
 };
 
+const formatLocalDateTime = (date: Date) => {
+    const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+    return localDate.toISOString().slice(0, 16);
+};
+
 const getEventTypeStyle = (type: EventType) => {
     const color = eventTypeColors[type] || 'bg-gray-600';
     const textColor = [EventType.Interview].includes(type) ? 'text-black' : 'text-white';
@@ -52,7 +57,7 @@ const AddEventModal: React.FC<{
     initialDate: Date;
 }> = ({ onClose, onSave, users, initialDate }) => {
     const [title, setTitle] = useState('');
-    const [date, setDate] = useState(initialDate.toISOString().substring(0, 16));
+    const [date, setDate] = useState(formatLocalDateTime(initialDate));
     const [type, setType] = useState<EventType>(EventType.Meeting);
     const [notes, setNotes] = useState('');
     const [attendeeIds, setAttendeeIds] = useState<string[]>([]);
@@ -60,7 +65,9 @@ const AddEventModal: React.FC<{
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!title.trim() || !date) return;
-        onSave({ title, date, type, notes, attendeeIds });
+        const parsedDate = new Date(date);
+        if (Number.isNaN(parsedDate.getTime())) return;
+        onSave({ title: title.trim(), date: parsedDate.toISOString(), type, notes, attendeeIds });
     };
 
     return (
@@ -95,12 +102,14 @@ const EventModal: React.FC<{
   const [editedEvent, setEditedEvent] = useState(event);
 
   const handleSave = () => {
+    if (!editedEvent.title.trim() || Number.isNaN(new Date(editedEvent.date).getTime())) return;
     setEvents(prev => prev.map(e => e.id === editedEvent.id ? editedEvent : e));
     onClose();
   };
 
   const handleDelete = () => {
     if (window.confirm("Are you sure you want to delete this event?")) {
+      setEvents(prev => prev.filter(item => item.id !== event.id || item.bandId !== event.bandId));
       onClose();
     }
   }
@@ -112,7 +121,14 @@ const EventModal: React.FC<{
             <div className="space-y-4">
                 <input type="text" value={editedEvent.title} onChange={e => setEditedEvent({...editedEvent, title: e.target.value})} className="w-full bg-gray-700 p-2 rounded-lg" />
                 <div className="grid grid-cols-2 gap-4">
-                    <input type="datetime-local" value={editedEvent.date.substring(0, 16)} onChange={e => setEditedEvent({...editedEvent, date: new Date(e.target.value).toISOString()})} className="w-full bg-gray-700 p-2 rounded-lg" />
+                    <input type="datetime-local" value={Number.isNaN(new Date(editedEvent.date).getTime()) ? '' : formatLocalDateTime(new Date(editedEvent.date))} onChange={e => {
+                        const value = e.target.value;
+                        const parsedDate = value ? new Date(value) : null;
+                        setEditedEvent({
+                            ...editedEvent,
+                            date: parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toISOString() : '',
+                        });
+                    }} className="w-full bg-gray-700 p-2 rounded-lg" />
                     <select value={editedEvent.type} onChange={e => setEditedEvent({...editedEvent, type: e.target.value as EventType})} className="w-full bg-gray-700 p-2 rounded-lg">
                         {Object.values(EventType).map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
@@ -123,7 +139,7 @@ const EventModal: React.FC<{
                  <button onClick={handleDelete} className="bg-red-800 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Delete</button>
                 <div className="flex gap-4">
                     <button onClick={onClose} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Cancel</button>
-                    <button onClick={handleSave} className="bg-spotify-green hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg">Save Changes</button>
+                    <button onClick={handleSave} disabled={!editedEvent.title.trim() || Number.isNaN(new Date(editedEvent.date).getTime())} className="bg-spotify-green hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg disabled:cursor-not-allowed disabled:opacity-50">Save Changes</button>
                 </div>
             </div>
         </div>
@@ -205,21 +221,16 @@ export const Calendar: React.FC<CalendarProps> = ({
     const [typeFilter, setTypeFilter] = useState('all');
     const [projectFilter, setProjectFilter] = useState('all');
     const [viewMode, setViewMode] = useState<CalendarView>('month');
+    const [showTip, setShowTip] = useState(true);
 
     const projects = useMemo(() => allProjects.filter(p => p.bandId === activeBandId), [allProjects, activeBandId]);
 
     const parseDate = (dateStr: string): Date => {
-        try {
-            const parsed = new Date(dateStr);
-            if (isNaN(parsed.getTime())) {
-                console.warn(`Invalid date: ${dateStr}`);
-                return new Date();
-            }
-            return parsed;
-        } catch {
-            console.warn(`Error parsing date: ${dateStr}`);
-            return new Date();
+        const parsed = new Date(dateStr);
+        if (Number.isNaN(parsed.getTime())) {
+            console.warn(`Skipping calendar item with invalid date: ${dateStr}`);
         }
+        return parsed;
     };
 
     const unifiedEvents = useMemo((): UnifiedEvent[] => {
@@ -325,7 +336,7 @@ export const Calendar: React.FC<CalendarProps> = ({
             materials: [`Link: ${app.url || 'N/A'}`]
         }));
         
-        let filtered = allUnifiedEvents;
+        let filtered = allUnifiedEvents.filter(event => Number.isFinite(event.date.getTime()));
         if (typeFilter !== 'all') {
             filtered = filtered.filter(e => e.type === typeFilter);
         }
@@ -582,7 +593,7 @@ export const Calendar: React.FC<CalendarProps> = ({
                  </div>
             </div>
 
-            <Tip onDismiss={() => {}}>Este calendário integra tarefas, prazos e eventos de todo o app em uma única visualização. Os festivais e oportunidades de financiamento aparecem com lembretes automáticos.</Tip>
+            {showTip && <Tip onDismiss={() => setShowTip(false)}>Este calendário integra tarefas, prazos e eventos de todo o app em uma única visualização. Os festivais e oportunidades de financiamento aparecem com lembretes automáticos.</Tip>}
 
             {viewMode === 'month' && renderMonthView()}
             {viewMode === 'week' && renderWeekView()}

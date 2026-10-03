@@ -190,22 +190,23 @@ export const Production: React.FC<ProductionProps> = ({ users, activeBandId, son
 };
 
 // View for showing all projects
-const ProjectLibraryView: React.FC<{ projects: ProductionProject[], tasks: Task[], onSelectProject: (id: string) => void, onNewProject: () => void, onDeleteProject: (id: string) => void, onEditProject: (project: ProductionProject) => void }> = ({ projects, tasks, onSelectProject, onNewProject, onDeleteProject, onEditProject }) => (
-    <div>
+const ProjectLibraryView: React.FC<{ projects: ProductionProject[], tasks: Task[], onSelectProject: (id: string) => void, onNewProject: () => void, onDeleteProject: (id: string) => void, onEditProject: (project: ProductionProject) => void }> = ({ projects, tasks, onSelectProject, onNewProject, onDeleteProject, onEditProject }) => {
+    const [showTip, setShowTip] = useState(true);
+    return <div>
         <div className="flex justify-between items-center mb-6">
             <h1 className="text-4xl font-bold">Production Studio</h1>
             <button onClick={onNewProject} className="flex items-center bg-spotify-green hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg">
                 <PlusIcon className="h-5 w-5 mr-2" /> New Project
             </button>
         </div>
-        <Tip onDismiss={() => {}}>This is your central hub for music creation. All projects and their tasks are now synced with the main Projects board.</Tip>
+        {showTip && <Tip onDismiss={() => setShowTip(false)}>This is your central hub for music creation. All projects and their tasks are now synced with the main Projects board.</Tip>}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {projects.filter(p => p.type !== ProjectType.Other).map(p => (
                 <ProjectCard key={p.id} project={p} progress={calculateProjectProgressForBoard(p, tasks)} onSelect={() => onSelectProject(p.id)} onDelete={() => onDeleteProject(p.id)} onEdit={() => onEditProject(p)} />
             ))}
         </div>
-    </div>
-);
+    </div>;
+};
 
 const ProjectCard: React.FC<{ project: ProductionProject, progress: number, onSelect: () => void, onDelete: () => void, onEdit: () => void }> = ({ project, progress, onSelect, onDelete, onEdit }) => {
     const summary = summarizeProjectPlanning(project);

@@ -88,8 +88,13 @@ const NavItem: React.FC<{
   const inactiveClasses = "text-gray-400 hover:bg-white/5 hover:text-white border-transparent";
 
   return (
-    <li onClick={() => { window.location.hash = page; onClick(); }}>
-      <a className={`${baseClasses} ${isActive ? activeClasses : inactiveClasses}`}>
+    <li>
+      <a
+        href={`#${page}`}
+        onClick={onClick}
+        aria-current={isActive ? 'page' : undefined}
+        className={`${baseClasses} ${isActive ? activeClasses : inactiveClasses}`}
+      >
         {icon}
         <span className="mx-3">{label}</span>
       </a>

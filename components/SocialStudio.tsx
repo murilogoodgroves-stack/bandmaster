@@ -75,10 +75,16 @@ const CaptionGenerator: React.FC<{ bands: BandProfile[] }> = ({ bands }) => {
         }
     };
 
-    const handleCopy = (text: string, index: number) => {
-        navigator.clipboard.writeText(text);
-        setCopiedIndex(index);
-        setTimeout(() => setCopiedIndex(null), 2000);
+    const handleCopy = async (text: string, index: number) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setError('');
+            setCopiedIndex(index);
+            setTimeout(() => setCopiedIndex(null), 2000);
+        } catch (error) {
+            console.error('Could not copy the social caption:', error);
+            setError('Could not access the clipboard. Select and copy the caption manually.');
+        }
     };
 
     return (

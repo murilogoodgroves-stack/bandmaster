@@ -704,7 +704,7 @@ export interface EmailCampaign {
   sentDate?: string;
   scheduledDate?: string;
   projectId?: string;
-  // Simulated stats
+  // Metrics reported by the delivery provider.
   openRate?: number;
   clickRate?: number;
   bandId: string;

@@ -4,7 +4,7 @@ import useLocalStorage from '../hooks/useLocalStorage';
 import { ReleaseType, TaskStatus } from '../types';
 import type { Release, ReleaseChecklistItem, PressContact, User, BandProfile, ProductionProject, Task } from '../types';
 import { releasePlanTemplate } from '../data/releasePlanTemplate';
-import { PlusIcon, TrashIcon, ChevronDownIcon, UploadCloudIcon, BotIcon, SlashIcon, InfoIcon } from './icons';
+import { PlusIcon, TrashIcon, ChevronDownIcon, UploadCloudIcon, BotIcon, SlashIcon, InfoIcon, CopyIcon } from './icons';
 import { generateEmail, EmailTone, EmailLength, generateReleasePlan } from '../services/aiService';
 import { Tip } from './Tip';
 import { initialBandProfiles, initialPressContacts } from '../data/initialData';
@@ -339,7 +339,7 @@ const ChecklistItem: React.FC<{ item: ReleaseChecklistItem, releaseDate: string,
                 </button>
             )}
             <button onClick={() => onChange(item.id, { isNA: !item.isNA })} title="Mark N/A" className="p-2 hover:bg-gray-600 rounded-full"><SlashIcon className="w-4 h-4 text-gray-500" /></button>
-            {isPitching && <PitchingModal releaseTitle={releaseDate} itemText={item.text} onClose={() => setIsPitching(false)} onPitchSent={() => onChange(item.id, {completed: true})} pressContacts={pressContacts} />}
+            {isPitching && <PitchingModal releaseTitle={releaseDate} itemText={item.text} onClose={() => setIsPitching(false)} pressContacts={pressContacts} />}
         </div>
     );
 };
@@ -479,7 +479,7 @@ const NewReleaseModal: React.FC<{ onClose: () => void, onSave: (data: any) => vo
 }
 
 // Modal for pitching to press contacts
-const PitchingModal: React.FC<{ releaseTitle: string, itemText: string, onClose: () => void, onPitchSent: () => void, pressContacts: PressContact[] }> = ({ releaseTitle, itemText, onClose, onPitchSent, pressContacts }) => {
+const PitchingModal: React.FC<{ releaseTitle: string, itemText: string, onClose: () => void, pressContacts: PressContact[] }> = ({ releaseTitle, itemText, onClose, pressContacts }) => {
     const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
     const [emailModalOpen, setEmailModalOpen] = useState(false);
 
@@ -524,7 +524,7 @@ const PitchingModal: React.FC<{ releaseTitle: string, itemText: string, onClose:
                     </button>
                 </div>
             </div>
-            {emailModalOpen && <AiEmailModal contacts={contactsToEmail} releaseTitle={releaseTitle} bandProfile={activeBand} onClose={() => {setEmailModalOpen(false); onPitchSent(); onClose();}} />}
+            {emailModalOpen && <AiEmailModal contacts={contactsToEmail} releaseTitle={releaseTitle} bandProfile={activeBand} onClose={() => setEmailModalOpen(false)} />}
         </div>
     );
 };
@@ -535,6 +535,8 @@ const AiEmailModal: React.FC<{ contacts: PressContact[], releaseTitle: string, b
     const [length, setLength] = useState<EmailLength>('Standard');
     const [generatedEmail, setGeneratedEmail] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [copyStatus, setCopyStatus] = useState('');
     
     const isBulk = contacts.length > 1;
     const targetDisplay = isBulk ? `${contacts.length} contacts` : contacts[0]?.name;
@@ -544,20 +546,27 @@ const AiEmailModal: React.FC<{ contacts: PressContact[], releaseTitle: string, b
     const handleGenerate = async () => {
         setIsLoading(true);
         setGeneratedEmail('');
-        const result = await generateEmail(prompt, contacts[0]?.name || '', tone, length, bandProfile, isBulk);
-        setGeneratedEmail(result);
-        setIsLoading(false);
+        setError('');
+        try {
+            const result = await generateEmail(prompt, contacts[0]?.name || '', tone, length, bandProfile, isBulk);
+            setGeneratedEmail(result);
+        } catch (error) {
+            console.error('Could not generate the release pitch:', error);
+            setError(error instanceof Error ? error.message : 'The release pitch could not be generated. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
     };
-    
-    // Auto-generate on open
-    React.useEffect(() => {
-         handleGenerate();
-    }, []);
-    
-    // Regenerate when settings change
-    React.useEffect(() => {
-         handleGenerate();
-    }, [tone, length]);
+
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(generatedEmail);
+            setCopyStatus('Draft copied. Send it using your email provider; Bandmaster does not send this pitch.');
+        } catch (error) {
+            console.error('Could not copy the release pitch:', error);
+            setCopyStatus('Could not access the clipboard. Select and copy the draft manually.');
+        }
+    };
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-4 z-[60]">
@@ -567,12 +576,15 @@ const AiEmailModal: React.FC<{ contacts: PressContact[], releaseTitle: string, b
                     <select value={tone} onChange={e => setTone(e.target.value as EmailTone)} className="w-full bg-gray-800 p-2 rounded-lg text-sm"><option>Professional</option><option>Casual</option><option>Enthusiastic</option></select>
                     <select value={length} onChange={e => setLength(e.target.value as EmailLength)} className="w-full bg-gray-800 p-2 rounded-lg text-sm"><option>Brief</option><option>Standard</option><option>Detailed</option></select>
                 </div>
+                <button onClick={handleGenerate} disabled={isLoading} className="mb-4 rounded-lg bg-purple-600 px-4 py-2 font-bold text-white hover:bg-purple-700 disabled:bg-gray-600">{isLoading ? 'Generating...' : generatedEmail ? 'Regenerate draft' : 'Generate draft'}</button>
                 <div className="flex-grow overflow-y-auto bg-gray-800 rounded-lg p-4 min-h-[200px]">
                     {isLoading ? <p className="text-center p-8 text-gray-400">AI is writing...</p> : <textarea readOnly value={generatedEmail} className="w-full h-full bg-transparent text-gray-300 border-none focus:ring-0 resize-none"></textarea>}
+                    {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
+                    {copyStatus && <p role="status" className="text-sm text-blue-300">{copyStatus}</p>}
                 </div>
                 <div className="flex justify-end gap-4 mt-4">
-                     <button onClick={onClose} className="bg-spotify-green hover:bg-green-500 font-bold py-2 px-4 rounded-lg">Send & Close</button>
-                    <button onClick={onClose} className="bg-gray-600 hover:bg-gray-700 font-bold py-2 px-4 rounded-lg">Cancel</button>
+                    {generatedEmail && <button onClick={handleCopy} className="flex items-center bg-blue-600 hover:bg-blue-700 font-bold py-2 px-4 rounded-lg"><CopyIcon className="w-4 h-4 mr-2"/>Copy draft</button>}
+                    <button onClick={onClose} className="bg-gray-600 hover:bg-gray-700 font-bold py-2 px-4 rounded-lg">Close draft</button>
                 </div>
             </div>
         </div>

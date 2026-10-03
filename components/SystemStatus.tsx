@@ -1,15 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { CronLog } from '../types';
 import { ClockIcon, CheckCircleIcon, XCircleIcon, TerminalIcon } from './icons';
+import { authenticatedFetch } from '../services/supabaseClient';
 
 export const SystemStatus: React.FC = () => {
   const [logs, setLogs] = useState<CronLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const latestStatus = logs[0]?.status;
+  const statusLabel = loading
+    ? 'Checking status'
+    : latestStatus === 'success'
+      ? 'Latest cron log succeeded'
+      : latestStatus === 'failure'
+        ? 'Latest cron log failed'
+        : 'No cron status available';
+  const statusClass = latestStatus === 'success'
+    ? 'bg-green-500/10 text-green-400 border-green-500/20'
+    : latestStatus === 'failure'
+      ? 'bg-red-500/10 text-red-400 border-red-500/20'
+      : 'bg-gray-500/10 text-gray-400 border-gray-500/20';
 
   useEffect(() => {
     const fetchLogs = async () => {
       try {
-        const response = await fetch('/api/system-status');
+        const response = await authenticatedFetch('/api/system-status');
         if (!response.ok) {
           throw new Error('Unable to fetch cron logs');
         }
@@ -41,9 +55,9 @@ export const SystemStatus: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-medium text-white">System Status</h1>
-        <div className="flex items-center gap-2 px-3 py-1 bg-green-500/10 text-green-400 rounded-full border border-green-500/20 text-sm">
-          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-          Cron Service Online
+        <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-sm ${statusClass}`}>
+          <div className="w-2 h-2 rounded-full bg-current"></div>
+          {statusLabel}
         </div>
       </div>
 
@@ -55,8 +69,8 @@ export const SystemStatus: React.FC = () => {
             </div>
             <h3 className="font-medium text-white">Execution Frequency</h3>
           </div>
-          <p className="text-2xl font-bold text-white">Every 1 Minute</p>
-          <p className="text-gray-400 text-sm mt-1">Scheduled via node-cron</p>
+          <p className="text-2xl font-bold text-white">Optional</p>
+          <p className="text-gray-400 text-sm mt-1">Local development only; enable with ENABLE_CRON_LOGS=true</p>
         </div>
 
         <div className="bg-brand-bg-card p-6 rounded-xl border border-brand-border">
@@ -66,8 +80,8 @@ export const SystemStatus: React.FC = () => {
             </div>
             <h3 className="font-medium text-white">Database Target</h3>
           </div>
-          <p className="text-2xl font-bold text-white">Neon / Postgres</p>
-          <p className="text-gray-400 text-sm mt-1">Persistent system telemetry enabled</p>
+          <p className="text-2xl font-bold text-white">Postgres (if configured)</p>
+          <p className="text-gray-400 text-sm mt-1">Database connectivity and production monitoring are not verified here</p>
         </div>
 
         <div className="bg-brand-bg-card p-6 rounded-xl border border-brand-border">
@@ -77,8 +91,8 @@ export const SystemStatus: React.FC = () => {
             </div>
             <h3 className="font-medium text-white">Runtime Health</h3>
           </div>
-          <p className="text-2xl font-bold text-white">Healthy</p>
-          <p className="text-gray-400 text-sm mt-1">No Firebase dependency in runtime</p>
+          <p className="text-2xl font-bold text-white">Not monitored</p>
+          <p className="text-gray-400 text-sm mt-1">Configure production health checks and alerting before launch</p>
         </div>
       </div>
 
@@ -107,7 +121,7 @@ export const SystemStatus: React.FC = () => {
               ) : logs.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
-                    No logs found. The cron job runs every minute.
+                    No logs found. Cron logging is opt-in and disabled in production.
                   </td>
                 </tr>
               ) : (

@@ -3,9 +3,8 @@ import React, { useState, useMemo } from 'react';
 import useLocalStorage from '../hooks/useLocalStorage';
 import type { EmailCampaign, PressContact, Venue, Promoter, BandProfile, CalendarEvent, User, Release, Tour, Show, LabelContact, RadioContact, ProductionProject, FanContact, EmailFollowUp, BandSettings } from '../types';
 import { CampaignType, EventType } from '../types';
-import { buildNewsletterEmailHtml, buildMailchimpCampaignPayload, validateMailchimpConfig } from '../services/releaseMarketing';
 import { initialCampaigns, initialPressContacts, initialPromoters, initialBandProfiles, initialEvents, initialUsers, initialReleases, initialTours, initialLabelContacts, initialRadioContacts, initialProductionProjects, initialFanContacts, initialVenues } from '../data/initialData';
-import { PlusIcon, TrashIcon, MailIcon, BotIcon, ChevronLeftIcon, ChevronRightIcon, EyeIcon, MousePointerClickIcon, CalendarIcon, ClockIcon } from './icons';
+import { PlusIcon, TrashIcon, MailIcon, BotIcon, ChevronLeftIcon, ChevronRightIcon, CalendarIcon, ClockIcon } from './icons';
 import { generateEmail, EmailTone, EmailLength, generateEmailFromEPK } from '../services/aiService';
 import { validateCampaignRecipients } from '../services/campaignSafety';
 import { Tip } from './Tip';
@@ -33,7 +32,6 @@ export const Campaigns: React.FC<CampaignsProps> = ({ users, activeBandId, campa
     
     const [view, setView] = useState<CampaignView>('list');
     const [editingCampaign, setEditingCampaign] = useState<EmailCampaign | null>(null);
-    const [notification, setNotification] = useState('');
     const [showTip, setShowTip] = useState(true);
 
     const handleCreateNew = () => {
@@ -73,13 +71,6 @@ export const Campaigns: React.FC<CampaignsProps> = ({ users, activeBandId, campa
 
         setEditingCampaign(null);
         setView('list');
-        if (campaignToSave.status === 'Sent') {
-            setNotification('Campaign sent successfully!');
-            setTimeout(() => setNotification(''), 3000);
-        } else if (campaignToSave.status === 'Scheduled') {
-            setNotification('Campaign scheduled successfully!');
-            setTimeout(() => setNotification(''), 3000);
-        }
     };
 
     if (view === 'create' && editingCampaign) {
@@ -111,16 +102,10 @@ export const Campaigns: React.FC<CampaignsProps> = ({ users, activeBandId, campa
             
             {showTip && (
               <Tip onDismiss={() => setShowTip(false)}>
-                Build multi-step email campaigns. Use AI to generate content, set up scheduling & follow-ups. Recipients can be press, venues, labels, radio, or custom audiences.
+                Draft campaign content and review recipient consent. Sending, scheduling, and delivery analytics are not available yet.
               </Tip>
             )}
             
-            {notification && (
-                <div className="fixed top-5 right-5 z-50 p-4 text-sm rounded-lg shadow-lg bg-green-800 text-green-200">
-                    {notification}
-                </div>
-            )}
-
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {campaigns.map(campaign => (
                     <div key={campaign.id} className="bg-gray-800 p-5 rounded-lg shadow-md flex flex-col justify-between">
@@ -132,26 +117,21 @@ export const Campaigns: React.FC<CampaignsProps> = ({ users, activeBandId, campa
                                     campaign.status === 'Scheduled' ? 'bg-blue-500/20 text-blue-300' :
                                     'bg-gray-600 text-gray-300'
                                 }`}>
-                                    {campaign.status}
+                                    {campaign.status === 'Scheduled' ? 'Scheduled (not queued)' : campaign.status === 'Sent' ? 'Delivery unverified' : campaign.status}
                                 </span>
                             </div>
                             <p className="text-xs font-medium text-purple-300 bg-purple-900/50 px-2 py-0.5 rounded-full inline-block mb-2">{campaign.type}</p>
                             <p className="text-sm text-gray-400 truncate" title={campaign.subject}>Subject: {campaign.subject}</p>
                             <p className="text-sm text-gray-400">Recipients: {campaign.recipientIds.length}</p>
-                            {campaign.status === 'Sent' && 
-                                <div className="text-sm text-gray-400 mt-2 flex gap-4">
-                                    <span className="flex items-center gap-1.5"><EyeIcon className="w-4 h-4 text-gray-500"/> {campaign.openRate?.toFixed(0)}%</span>
-                                    <span className="flex items-center gap-1.5"><MousePointerClickIcon className="w-4 h-4 text-gray-500"/> {campaign.clickRate?.toFixed(0)}%</span>
-                                </div>
-                            }
+                            {campaign.status === 'Sent' && <p className="mt-2 text-sm text-amber-300">Bandmate cannot verify delivery or these historical metrics.</p>}
                             {campaign.status === 'Scheduled' && campaign.scheduledDate &&
-                                <div className="text-sm text-blue-300 mt-2 flex items-center gap-1.5"><ClockIcon className="w-4 h-4"/> Sends: {new Date(campaign.scheduledDate).toLocaleString()}</div>
+                                <div className="text-sm text-blue-300 mt-2 flex items-center gap-1.5"><ClockIcon className="w-4 h-4"/> Draft schedule date: {new Date(campaign.scheduledDate).toLocaleString()}</div>
                             }
                         </div>
                         <div className="mt-4 pt-4 border-t border-gray-700 flex justify-end gap-2">
                             {campaign.status === 'Draft' || campaign.status === 'Scheduled' ? 
                                 <button onClick={() => handleEdit(campaign)} className="text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-3 rounded-md">Edit</button>
-                                : <button className="text-sm bg-gray-600 hover:bg-gray-700 text-white font-semibold py-1 px-3 rounded-md">View Report</button>
+                                : <button disabled className="text-sm bg-gray-700 text-gray-400 font-semibold py-1 px-3 rounded-md">Report unavailable</button>
                             }
                             <button onClick={() => handleDelete(campaign.id)} className="text-sm bg-red-800 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-md">Delete</button>
                         </div>
@@ -187,57 +167,6 @@ const CampaignCreator: React.FC<CampaignCreatorProps> = ({ campaign, onSave, onB
     const [schedule, setSchedule] = useState(!!campaign.scheduledDate);
     const [approvalWarning, setApprovalWarning] = useState('');
 
-    const sendViaMailchimp = async () => {
-        if (campaignData.type !== CampaignType.Newsletter) return true;
-        const config = validateMailchimpConfig({
-            apiKey: contactProps.bandSettings.mailchimpApiKey || '',
-            serverPrefix: contactProps.bandSettings.mailchimpServerPrefix || '',
-            listId: contactProps.bandSettings.mailchimpAudienceId || '',
-        });
-
-        if (!config.valid) {
-            setApprovalWarning('Mailchimp is not configured for this band. Add the API key, server prefix, and audience ID in Settings before sending a newsletter.');
-            return false;
-        }
-
-        const html = buildNewsletterEmailHtml({
-            projectName: campaignData.name || 'New Release',
-            artistName: 'Artist',
-            releaseDate: new Date().toISOString().slice(0, 10),
-            description: campaignData.body || 'We are excited to share this update with you.',
-            ctaText: 'Listen Now',
-            ctaUrl: 'https://example.com/listen'
-        });
-
-        try {
-            const response = await fetch('/api/mailchimp/campaign', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    apiKey: contactProps.bandSettings.mailchimpApiKey,
-                    serverPrefix: contactProps.bandSettings.mailchimpServerPrefix,
-                    listId: contactProps.bandSettings.mailchimpAudienceId,
-                    title: campaignData.name || 'Newsletter',
-                    subject: campaignData.subject || 'New update',
-                    fromName: contactProps.bandSettings.mailchimpFromName || 'BandMate',
-                    replyTo: contactProps.bandSettings.mailchimpReplyTo || 'hello@example.com',
-                    html,
-                }),
-            });
-
-            if (!response.ok) {
-                const data = await response.json().catch(() => ({}));
-                setApprovalWarning(data.message || 'Mailchimp rejected the send request. Check the API key and audience settings.');
-                return false;
-            }
-
-            return true;
-        } catch (error) {
-            setApprovalWarning('Mailchimp channel is unavailable right now. Draft was saved safely; update the API settings and try again.');
-            return false;
-        }
-    };
-    
     // Format date for datetime-local input
     const formatDateTimeLocal = (isoString: string | undefined) => {
         if (!isoString) return '';
@@ -251,7 +180,7 @@ const CampaignCreator: React.FC<CampaignCreatorProps> = ({ campaign, onSave, onB
     const handleSaveDraft = () => onSave({ 
         ...campaignData, 
         status: 'Draft',
-        scheduledDate: schedule && scheduleDate ? new Date(scheduleDate).toISOString() : undefined,
+        scheduledDate: undefined,
     });
 
     const getRecipientPayload = () => {
@@ -269,8 +198,7 @@ const CampaignCreator: React.FC<CampaignCreatorProps> = ({ campaign, onSave, onB
         return normalized;
     };
 
-    const handleSend = async () => {
-        const action = schedule ? 'schedule' : 'send';
+    const handleSend = () => {
         const recipients = getRecipientPayload();
         const validation = validateCampaignRecipients(recipients);
 
@@ -284,26 +212,7 @@ const CampaignCreator: React.FC<CampaignCreatorProps> = ({ campaign, onSave, onB
             return;
         }
 
-        if (window.confirm(`This will ${action} the campaign to ${validation.approvedRecipients.length} verified recipients. Continue?`)) {
-            const mailchimpOk = await sendViaMailchimp();
-            if (mailchimpOk === false) {
-                return;
-            }
-
-            if (schedule && scheduleDate) {
-                onSave({ ...campaignData, status: 'Scheduled', scheduledDate: new Date(scheduleDate).toISOString() });
-            } else {
-                const openRate = Math.floor(Math.random() * (75 - 25 + 1)) + 25;
-                const clickRate = Math.floor(Math.random() * (openRate * 0.4 - 2 + 1)) + 2;
-                onSave({
-                    ...campaignData,
-                    status: 'Sent',
-                    sentDate: new Date().toISOString(),
-                    openRate,
-                    clickRate
-                });
-            }
-        }
+        setApprovalWarning('Sending and scheduled delivery are unavailable. Save this campaign as a draft; it will not be delivered or scheduled.');
     };
     
     const nextStep = () => setStep(prev => Math.min(prev + 1, 4) as CreateStep);
@@ -345,7 +254,7 @@ const CampaignCreator: React.FC<CampaignCreatorProps> = ({ campaign, onSave, onB
                         {step < 4 ? 
                             <button onClick={nextStep} className="bg-spotify-green hover:bg-green-500 font-bold py-2 px-4 rounded-lg">Next</button> :
                             <button onClick={handleSend} disabled={campaignData.recipientIds.length === 0} className="bg-spotify-green hover:bg-green-500 font-bold py-2 px-4 rounded-lg disabled:bg-gray-500">
-                                {schedule && scheduleDate ? 'Schedule Campaign' : 'Send Now'}
+                                Delivery unavailable
                             </button>
                         }
                     </div>
@@ -492,6 +401,7 @@ const Step3: React.FC<{ data: EmailCampaign, setData: React.Dispatch<React.SetSt
     const [length, setLength] = useState<EmailLength>('Standard');
     const [isLoading, setIsLoading] = useState(false);
     const [isEpkLoading, setIsEpkLoading] = useState(false);
+    const [generationError, setGenerationError] = useState('');
     
     const [showFollowUp, setShowFollowUp] = useState(!!data.followUp);
 
@@ -508,27 +418,39 @@ const Step3: React.FC<{ data: EmailCampaign, setData: React.Dispatch<React.SetSt
     const handleGenerate = async () => {
         if (!prompt) return;
         setIsLoading(true);
-        const result = await generateEmail(prompt, '{{name}}', tone, length, bandProfile, true, linkedProject);
-        setData({...data, body: result });
-        setIsLoading(false);
+        setGenerationError('');
+        try {
+            const result = await generateEmail(prompt, '{{name}}', tone, length, bandProfile, true, linkedProject);
+            setData(prev => ({ ...prev, body: result }));
+        } catch (error) {
+            console.error('Could not generate the campaign email:', error);
+            setGenerationError(error instanceof Error ? error.message : 'The campaign email could not be generated. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
     };
     
     const handleImportFromEpk = async () => {
         setIsEpkLoading(true);
-
-        const latestRelease = [...releases].sort((a,b) => new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime())[0];
-        const upcomingShows = tours.flatMap(t => t.shows).filter(s => new Date(s.date) >= new Date()).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 5);
-
-        const epkData = { bio, latestRelease, upcomingShows };
-        
-        const result = await generateEmailFromEPK(epkData, bandProfile);
-        setData({...data, body: result });
-        setIsEpkLoading(false);
+        setGenerationError('');
+        try {
+            const latestRelease = [...releases].sort((a,b) => new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime())[0];
+            const upcomingShows = tours.flatMap(t => t.shows).filter(s => new Date(s.date) >= new Date()).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 5);
+            const epkData = { bio, latestRelease, upcomingShows };
+            const result = await generateEmailFromEPK(epkData, bandProfile);
+            setData(prev => ({ ...prev, body: result }));
+        } catch (error) {
+            console.error('Could not generate a campaign email from the EPK:', error);
+            setGenerationError(error instanceof Error ? error.message : 'The email could not be generated from the EPK. Please try again.');
+        } finally {
+            setIsEpkLoading(false);
+        }
     };
 
     return (
         <div>
             <h2 className="text-2xl font-bold mb-4">3. Compose Email</h2>
+            {generationError && <p role="alert" className="mb-4 rounded-lg border border-red-500/40 bg-red-900/20 p-3 text-sm text-red-200">{generationError}</p>}
             <div className="bg-gray-900 p-4 rounded-lg mb-4">
                 <h3 className="text-lg font-semibold flex items-center"><BotIcon className="w-5 h-5 mr-2 text-purple-400"/> AI Content Generation</h3>
                 

@@ -7,6 +7,7 @@ import { TransactionType, MemberTransactionType } from '../types';
 import { PlusIcon, TrashIcon, EditIcon, SaveIcon, SlashIcon, RefreshCwIcon, UploadCloudIcon } from './icons';
 import { Tip } from './Tip';
 import { FinanceMerchImportAssistant } from './FinanceMerchImportAssistant';
+import { parseReceiptAmount, parseReceiptDate } from '../state/receiptParsing';
 
 interface FinanceImportRecord {
     id: string;
@@ -32,37 +33,39 @@ const expenseCategories = ["Gear", "Studio", "Travel", "Marketing", "Other"];
 const accountOptions: FinanceAccountType[] = ['Cash', 'Bank', 'PayPal', 'Card', 'Other'];
 
 const parseMoneyValue = (text: string) => {
-    const matches = [...text.matchAll(/\$?\s?(\d+(?:,\d{3})*(?:\.\d{2})?|\d+\.\d{1,2}|\d+)/g)].map((match) => match[1].replace(/,/g, ''));
-    const first = matches.find((value) => Number(value) > 0);
-    return first ? Number(first) : 0;
+    return parseReceiptAmount(text);
 };
 
 const parseDateValue = (text: string) => {
-    const iso = text.match(/\b(\d{4}-\d{2}-\d{2})\b/);
-    if (iso) return iso[1];
-
-    const fallback = text.match(/\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/);
-    if (fallback) {
-        const value = fallback[1];
-        const parsed = new Date(value);
-        if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
-    }
-
-    return new Date().toISOString().slice(0, 10);
+    return parseReceiptDate(text);
 };
 
-const inferReceiptData = (ocrText: string, users: User[]) => {
+const inferReceiptData = (ocrText: string, users: User[]): {
+    description: string;
+    amount: number;
+    type: TransactionType;
+    category: string;
+    date: string;
+    ownerId: string;
+    accountType: FinanceAccountType;
+    source: string;
+    notes: string;
+} => {
     const cleanedText = ocrText.replace(/\s+/g, ' ');
     const amount = parseMoneyValue(cleanedText);
     const date = parseDateValue(cleanedText);
-    const ownerId = users.find((user) => new RegExp(user.name.split(' ')[0], 'i').test(cleanedText))?.id || '';
-    const type = /(sale|revenue|income|received|credit|refund|profit)/i.test(cleanedText) ? TransactionType.Income : TransactionType.Expense;
+    const ownerId = users.find((user) => {
+        const firstName = user.name.trim().split(/\s+/)[0]?.toLowerCase();
+        return firstName && cleanedText.toLowerCase().includes(firstName);
+    })?.id || '';
+    const type = /\b(sale|revenue|income|received|refund|profit)\b|\bcredit\b(?!\s+card)/i.test(cleanedText) ? TransactionType.Income : TransactionType.Expense;
     const accountType: FinanceAccountType = /paypal/i.test(cleanedText) ? 'PayPal' : /bank|wire|transfer/i.test(cleanedText) ? 'Bank' : /card|visa|mastercard|amex/i.test(cleanedText) ? 'Card' : 'Cash';
-    const category = /(merch|shirt|vinyl|cd|hoodie|tee|poster|product|print)/i.test(cleanedText) ? 'Merch' : /(travel|flight|hotel|uber|taxi|fuel|mileage)/i.test(cleanedText) ? 'Travel' : /(studio|mix|master|record)/i.test(cleanedText) ? 'Studio' : /(gig|show|performance|festival)/i.test(cleanedText) ? 'Gig' : 'Other';
-    const description = cleanedText
-        .replace(/\s+/g, ' ')
-        .split(/\s{10,}/)
-        .find((part) => part.length > 6 && !/\$\d|\d{2,4}-\d{1,2}-\d{1,2}/.test(part)) || 'Receipt import';
+    const category = /(merch|shirt|vinyl|\bcd\b|hoodie|tee|poster|product|print)/i.test(cleanedText) ? 'Merch' : /(travel|flight|hotel|uber|taxi|fuel|mileage)/i.test(cleanedText) ? 'Travel' : /(studio|mix|master|record)/i.test(cleanedText) ? 'Studio' : /(gig|show|performance|festival)/i.test(cleanedText) ? 'Gig' : 'Other';
+    const description = ocrText
+        .split(/\r?\n/)
+        .map((line) => line.replace(/\s+/g, ' ').trim())
+        .find((line) => line.length > 6 && !/[$£€]\s*\d|\d{2,4}-\d{1,2}-\d{1,2}|\b(total|subtotal|tax|change|cash|card)\b/i.test(line))
+        || 'Receipt import';
 
     return {
         description: description.trim().slice(0, 120) || 'Receipt import',
@@ -75,40 +78,6 @@ const inferReceiptData = (ocrText: string, users: User[]) => {
         source: 'Receipt OCR import',
         notes: `Automatic receipt parse from uploaded image. ${cleanedText.slice(0, 240)}`,
     };
-};
-
-const normalizeMerchName = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-
-const reconcileMerchInventory = (ocrText: string, merch: MerchItem[]) => {
-    if (!merch.length) return { updated: false, message: 'No merch inventory available for reconciliation.' };
-
-    let updated = false;
-    let message = 'No inventory change detected from receipt text.';
-    const normalizedText = normalizeMerchName(ocrText);
-
-    merch.forEach((item) => {
-        const itemName = normalizeMerchName(item.name);
-        if (!itemName || !normalizedText.includes(itemName)) return;
-
-        const quantityMatch = ocrText.match(/(?:qty|quantity|count|units?)\s*[:=]?\s*(\d+)/i);
-        if (!quantityMatch) return;
-
-        const quantity = Number(quantityMatch[1]);
-        const targetKey = Object.keys(item.variants || {})[0] || 'Default';
-        const variantList = item.variants?.[targetKey] || [];
-        if (!variantList.length) return;
-
-        const nextVariantList = variantList.map((variant) => ({
-            ...variant,
-            stock: Math.max(0, variant.stock - quantity),
-        }));
-
-        item.variants = { ...item.variants, [targetKey]: nextVariantList };
-        updated = true;
-        message = `Updated inventory for ${item.name} by ${quantity} unit(s) based on receipt OCR.`;
-    });
-
-    return { updated, message };
 };
 
 const BarChart: React.FC<{data: {label: string, income: number, expense: number}[]}> = ({data}) => {
@@ -199,6 +168,8 @@ export const Financials: React.FC<FinancialsProps> = ({
   const [showForm, setShowForm] = useState(false);
   const [showReceiptImport, setShowReceiptImport] = useState(false);
   const [receiptImportStatus, setReceiptImportStatus] = useState('');
+  const [receiptSourceFileName, setReceiptSourceFileName] = useState('');
+  const [isReceiptProcessing, setIsReceiptProcessing] = useState(false);
   const [receiptPreview, setReceiptPreview] = useState<ReturnType<typeof inferReceiptData> | null>(null);
   const [receiptImportError, setReceiptImportError] = useState<string | null>(null);
   const [financeImportHistory, setFinanceImportHistory] = useLocalStorage<FinanceImportRecord[]>('financeImportHistory', []);
@@ -303,6 +274,9 @@ export const Financials: React.FC<FinancialsProps> = ({
 
     setReceiptImportError(null);
     setReceiptImportStatus('Reading receipt and extracting ledger details...');
+    setReceiptPreview(null);
+    setReceiptSourceFileName(file.name);
+    setIsReceiptProcessing(true);
 
     try {
       const { data } = await Tesseract.recognize(file, 'eng', {
@@ -314,22 +288,37 @@ export const Financials: React.FC<FinancialsProps> = ({
       });
 
       const parsed = inferReceiptData(data.text, users);
-      const previousMatches = transactions.filter((tx) => tx.bandId === activeBandId && tx.description.toLowerCase() === parsed.description.toLowerCase() && Math.abs(tx.amount - parsed.amount) <= 5);
-      const warnings = previousMatches.length ? [`This receipt closely matches an existing ledger entry (${previousMatches[0].description}). It was reviewed and reconciled before saving.`] : [];
-      setReceiptPreview({ ...parsed, notes: `${parsed.notes} ${warnings.join(' ')}`.trim() });
-      setReceiptImportStatus(warnings.length ? 'Receipt matched a previous transaction and was marked for reconciliation.' : 'Receipt parsed successfully. Review and save to update the cash ledger.');
+      setReceiptPreview(parsed);
+      setReceiptImportStatus('Receipt parsed. Review and correct the details before saving; inventory is not changed automatically.');
       setReceiptImportError(null);
     } catch (error) {
       console.error('Receipt OCR failed:', error);
       setReceiptImportError('The receipt image could not be processed. Please try a clearer photo or re-upload.');
       setReceiptImportStatus('');
+    } finally {
+      setIsReceiptProcessing(false);
+      event.target.value = '';
     }
-
-    event.target.value = '';
   };
 
   const handleSaveReceiptImport = () => {
     if (!receiptPreview) return;
+    if (!receiptPreview.description.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(receiptPreview.date)) {
+      setReceiptImportError('Enter a description and valid date before saving this transaction.');
+      return;
+    }
+    const normalizedDescription = receiptPreview.description.trim().toLowerCase();
+    const duplicate = transactions.find((tx) => tx.description.trim().toLowerCase() === normalizedDescription
+      && Math.round(tx.amount * 100) === Math.round(receiptPreview.amount * 100)
+      && tx.date === receiptPreview.date);
+    if (duplicate) {
+      setReceiptImportError('This receipt matches an existing transaction. Check the ledger instead of importing it again; use a manual transaction if it is genuinely separate.');
+      return;
+    }
+    if (!Number.isFinite(receiptPreview.amount) || receiptPreview.amount <= 0) {
+      setReceiptImportError('No valid receipt total was recognized. Re-upload a clearer image or enter the transaction manually.');
+      return;
+    }
 
     const newTransaction: Transaction = {
       id: Date.now().toString(),
@@ -345,16 +334,11 @@ export const Financials: React.FC<FinancialsProps> = ({
       notes: receiptPreview.notes,
     };
 
-    const inventoryResult = reconcileMerchInventory(receiptPreview.notes, merch);
-    if (inventoryResult.updated && typeof setMerch === 'function') {
-      setMerch((prev) => prev.map((item) => item));
-    }
-
     setAllTransactions((prev) => [...prev, newTransaction]);
 
     const importRecord: FinanceImportRecord = {
       id: `receipt-${Date.now()}`,
-      sourceFileName: 'receipt-import',
+      sourceFileName: receiptSourceFileName || 'receipt-import',
       sourceType: 'receipt',
       timestamp: new Date().toISOString(),
       ocrText: receiptPreview.notes,
@@ -368,7 +352,7 @@ export const Financials: React.FC<FinancialsProps> = ({
         ownerId: newTransaction.ownerId,
       },
       createdTransactionId: newTransaction.id,
-      warnings: inventoryResult.updated ? [inventoryResult.message] : [],
+      warnings: ['Merch inventory was not changed automatically; review any stock adjustment in Merchandise.'],
     };
 
     setFinanceImportHistory((prev) => [importRecord, ...prev].slice(0, 50));
@@ -556,18 +540,21 @@ export const Financials: React.FC<FinancialsProps> = ({
 
                     <div className="bg-gray-900 rounded-xl p-4 mb-4">
                         <label className="block text-sm text-gray-300 mb-2">Choose a handwritten or printed receipt image</label>
-                        <input type="file" accept="image/*" onChange={handleReceiptUpload} className="block w-full text-sm text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-500" />
+                        <input type="file" accept="image/*" onChange={handleReceiptUpload} disabled={isReceiptProcessing} className="block w-full text-sm text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-500 disabled:opacity-50" />
                     </div>
 
+                    {receiptImportStatus && <p role="status" className="text-sm text-purple-200 mb-3">{receiptImportStatus}</p>}
                     {receiptImportError && <p className="text-red-400 text-sm mb-3">{receiptImportError}</p>}
 
                     {receiptPreview && (
                         <div className="bg-gray-900 rounded-xl p-4 mb-4 space-y-3">
+                            {transactions.some((tx) => tx.description.trim().toLowerCase() === receiptPreview.description.trim().toLowerCase() && Math.round(tx.amount * 100) === Math.round(receiptPreview.amount * 100) && tx.date === receiptPreview.date) && <p role="alert" className="text-sm text-amber-300">This appears to match an existing transaction. Check the ledger before importing it again.</p>}
                             <div className="grid grid-cols-2 gap-3 text-sm">
-                                <div><span className="text-gray-400">Description:</span> <div className="font-semibold">{receiptPreview.description}</div></div>
-                                <div><span className="text-gray-400">Amount:</span> <div className="font-semibold text-green-400">${receiptPreview.amount.toFixed(2)}</div></div>
-                                <div><span className="text-gray-400">Date:</span> <div className="font-semibold">{receiptPreview.date}</div></div>
-                                <div><span className="text-gray-400">Account:</span> <div className="font-semibold">{receiptPreview.accountType}</div></div>
+                                <label className="text-gray-400">Description<input value={receiptPreview.description} onChange={(event) => setReceiptPreview({ ...receiptPreview, description: event.target.value })} className="mt-1 block w-full rounded bg-gray-800 p-2 text-white" /></label>
+                                <label className="text-gray-400">Amount<input type="number" min="0" step="0.01" value={receiptPreview.amount} onChange={(event) => setReceiptPreview({ ...receiptPreview, amount: Number(event.target.value) || 0 })} className="mt-1 block w-full rounded bg-gray-800 p-2 text-white" /></label>
+                                <label className="text-gray-400">Date<input type="date" value={receiptPreview.date} onChange={(event) => setReceiptPreview({ ...receiptPreview, date: event.target.value })} className="mt-1 block w-full rounded bg-gray-800 p-2 text-white" /></label>
+                                <label className="text-gray-400">Account<select value={receiptPreview.accountType} onChange={(event) => setReceiptPreview({ ...receiptPreview, accountType: event.target.value as FinanceAccountType })} className="mt-1 block w-full rounded bg-gray-800 p-2 text-white">{accountOptions.map((account) => <option key={account}>{account}</option>)}</select></label>
+                                <label className="text-gray-400">Transaction type<select value={receiptPreview.type} onChange={(event) => setReceiptPreview({ ...receiptPreview, type: event.target.value as TransactionType })} className="mt-1 block w-full rounded bg-gray-800 p-2 text-white"><option value={TransactionType.Income}>Income</option><option value={TransactionType.Expense}>Expense</option></select></label>
                             </div>
                             <div className="text-xs text-gray-400">Type: {receiptPreview.type} · Category: {receiptPreview.category} · Owner: {users.find((user) => user.id === receiptPreview.ownerId)?.name || 'Unassigned'}</div>
                             <div className="text-xs text-amber-300">{receiptPreview.notes}</div>
@@ -576,7 +563,7 @@ export const Financials: React.FC<FinancialsProps> = ({
 
                     <div className="flex justify-end gap-3">
                         <button type="button" onClick={() => { setShowReceiptImport(false); setReceiptPreview(null); }} className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Cancel</button>
-                        <button type="button" onClick={handleSaveReceiptImport} disabled={!receiptPreview} className="bg-spotify-green hover:bg-green-500 px-4 py-2 rounded disabled:bg-gray-600 disabled:cursor-not-allowed">Save to ledger</button>
+                        <button type="button" onClick={handleSaveReceiptImport} disabled={!receiptPreview || isReceiptProcessing || receiptPreview.amount <= 0 || transactions.some((tx) => tx.description.trim().toLowerCase() === receiptPreview.description.trim().toLowerCase() && Math.round(tx.amount * 100) === Math.round(receiptPreview.amount * 100) && tx.date === receiptPreview.date)} className="bg-spotify-green hover:bg-green-500 px-4 py-2 rounded disabled:bg-gray-600 disabled:cursor-not-allowed">Save to ledger</button>
                     </div>
                 </div>
             </div>

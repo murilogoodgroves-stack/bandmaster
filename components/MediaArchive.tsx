@@ -4,6 +4,7 @@ import type { MediaAsset } from '../types';
 import { initialMediaAssets } from '../data/initialData';
 import { PlusIcon, TrashIcon, EditIcon, SearchIcon, VideoIcon, ImageIcon, LinkIcon } from './icons';
 import { Tip } from './Tip';
+import { authenticatedFetch } from '../services/supabaseClient';
 
 const fileToDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
   const reader = new FileReader();
@@ -16,7 +17,7 @@ const persistMediaFile = async (file: File) => {
   const dataUrl = await fileToDataUrl(file);
 
   try {
-    const response = await fetch('/api/media/upload', {
+    const response = await authenticatedFetch('/api/media/upload', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fileName: file.name, dataUrl }),
@@ -33,6 +34,9 @@ const persistMediaFile = async (file: File) => {
       storageMode: result.storageMode || 'server-local',
     };
   } catch (error) {
+    if (import.meta.env.PROD) {
+      throw error;
+    }
     console.warn('Server-local media upload unavailable; using browser-persisted fallback.', error);
     return {
       imageDataUrl: dataUrl,
@@ -60,27 +64,34 @@ const AssetFormModal: React.FC<{
     assetPath: asset?.assetPath || '',
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadError, setUploadError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    let assetData = {
-      id: asset?.id,
-      ...formData,
-      tags: formData.tags.split(',').map(tag => tag.trim()).filter(Boolean),
-    };
-
-    if (selectedFile && formData.type === 'Photo') {
-      const uploaded = await persistMediaFile(selectedFile);
-      assetData = {
-        ...assetData,
-        imageDataUrl: uploaded.imageDataUrl,
-        assetPath: uploaded.assetPath,
-        storageMode: uploaded.storageMode,
-        folderPath: uploaded.assetPath || formData.folderPath,
+    setUploadError('');
+    try {
+      let assetData = {
+        id: asset?.id,
+        ...formData,
+        tags: formData.tags.split(',').map(tag => tag.trim()).filter(Boolean),
       };
-    }
 
-    onSave(assetData);
+      if (selectedFile && formData.type === 'Photo') {
+        const uploaded = await persistMediaFile(selectedFile);
+        assetData = {
+          ...assetData,
+          imageDataUrl: uploaded.imageDataUrl,
+          assetPath: uploaded.assetPath,
+          storageMode: uploaded.storageMode,
+          folderPath: uploaded.assetPath || formData.folderPath,
+        };
+      }
+
+      onSave(assetData);
+    } catch (error) {
+      console.error('Media upload failed:', error);
+      setUploadError(error instanceof Error ? error.message : 'Upload failed. The asset was not saved.');
+    }
   };
 
   return (
@@ -126,6 +137,7 @@ const AssetFormModal: React.FC<{
           )}
 
           <input type="text" placeholder="Tags (comma-separated)" value={formData.tags} onChange={e => setFormData({ ...formData, tags: e.target.value })} className="w-full bg-gray-700 p-3 rounded-lg" />
+          {uploadError && <p role="alert" className="rounded-lg border border-red-500/40 bg-red-900/20 p-3 text-sm text-red-200">{uploadError}</p>}
           {formData.type === 'Video' && (
             <input type="url" placeholder="YouTube or Vimeo Embed URL" value={formData.videoUrl} onChange={e => setFormData({ ...formData, videoUrl: e.target.value })} className="w-full bg-gray-700 p-3 rounded-lg" />
           )}

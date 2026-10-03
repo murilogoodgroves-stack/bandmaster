@@ -138,6 +138,7 @@ export const Residencies: React.FC<ResidenciesProps> = ({ users, activeBandId, e
     const [isLoadMoreLoading, setIsLoadMoreLoading] = useState(false);
     const [notification, setNotification] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [showTip, setShowTip] = useState(true);
 
     const savedResidencies = useMemo(() => allSaved.filter(r => r.bandId === activeBandId), [allSaved, activeBandId]);
 
@@ -254,9 +255,9 @@ export const Residencies: React.FC<ResidenciesProps> = ({ users, activeBandId, e
                 </button>
             </div>
 
-            <Tip onDismiss={() => {}}>
+            {showTip && <Tip onDismiss={() => setShowTip(false)}>
                 Residencies are a great way to focus on creative work. Use the "Financial Model" filter to find opportunities that pay you (Stipend) vs those that are just free to attend.
-            </Tip>
+            </Tip>}
 
             {/* Search Section */}
             <div className="bg-brand-bg-card p-6 rounded-xl shadow-lg mb-8">

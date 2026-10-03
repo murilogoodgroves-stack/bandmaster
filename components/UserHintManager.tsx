@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import type { BandProfile, User } from '../types';
+import { getUserScopedItem, setUserScopedItem } from '../state/userStorageScope';
 
 export type UserHintContext = {
   page: string;
@@ -59,7 +60,7 @@ export const UserHintManager: React.FC<{
   const [hiddenHints, setHiddenHints] = useState<Record<string, HintPreference>>(() => {
     if (!user) return {};
     try {
-      const raw = localStorage.getItem(storageKeyForUser(user.id));
+      const raw = getUserScopedItem(storageKeyForUser(user.id));
       return raw ? JSON.parse(raw) : {};
     } catch {
       return {};
@@ -78,7 +79,7 @@ export const UserHintManager: React.FC<{
     if (!user) return;
     const next = { ...hiddenHints, [id]: { hidden: true } };
     setHiddenHints(next);
-    localStorage.setItem(storageKeyForUser(user.id), JSON.stringify(next));
+    setUserScopedItem(storageKeyForUser(user.id), JSON.stringify(next));
   };
 
   if (!activeHint) return null;

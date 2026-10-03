@@ -5,6 +5,7 @@ import { APP_PAGES, TaskStatus, EventType, TransactionType } from '../types';
 import { CheckCircleIcon, ClockIcon, PlusIcon, BotIcon, RefreshCwIcon, ArrowRightIcon, LinkIcon, CalendarIcon, ReleaseIcon, MegaphoneIcon, DashboardIcon, SaveIcon } from './icons';
 import { findLabelContacts } from '../services/aiService';
 import useLocalStorage from '../hooks/useLocalStorage';
+import { setUserScopedItem } from '../state/userStorageScope';
 
 interface DashboardProps {
     users: User[];
@@ -94,7 +95,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
     const handleSuggestionClick = (suggestion: WizardSuggestion) => {
         if (suggestion.action.data) {
-            localStorage.setItem('wizard_suggestion_data', JSON.stringify(suggestion.action.data));
+            setUserScopedItem('wizard_suggestion_data', JSON.stringify(suggestion.action.data));
         }
         navigateToSection(suggestion.action.page);
         setSuggestions(prev => prev.filter(s => s.id !== suggestion.id));

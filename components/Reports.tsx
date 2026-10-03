@@ -70,13 +70,83 @@ const ReportDisplay: React.FC<{ report: { config: ReportConfig, data: any[] } }>
                     ))}
                 </ul>
             );
-        case 'BarChart':
-        case 'PieChart':
-            // Placeholder for charts
-            return <>
-                <p className="text-gray-500">Chart view for '{config.displayAs}' is not implemented in this demo. Raw data is shown below.</p>
-                <pre className="text-xs bg-gray-900 p-4 rounded-md overflow-x-auto">{JSON.stringify(data, null, 2)}</pre>
-            </>;
+        case 'BarChart': {
+            const groupField = config.groupBy || ({
+                Tasks: 'status',
+                Transactions: 'category',
+                Shows: 'city',
+                Releases: 'title',
+            }[config.dataSource]);
+            const metricField = Object.keys(data[0] || {}).find(key => key !== 'id'
+                && data.some(row => typeof row[key] === 'number'));
+            const groups = new Map<string, number>();
+            data.forEach((row, index) => {
+                const rawLabel = row[groupField];
+                const label = typeof rawLabel === 'string' || typeof rawLabel === 'number'
+                    ? String(rawLabel)
+                    : `Record ${index + 1}`;
+                const metric = metricField ? Number(row[metricField]) : 1;
+                groups.set(label, (groups.get(label) || 0) + metric);
+            });
+            const rows = [...groups.entries()];
+            const maxValue = Math.max(...rows.map(([, value]) => value), 0);
+            return (
+                <div className="space-y-3" role="img" aria-label={`${metricField || 'Record count'} bar chart grouped by ${groupField}`}>
+                    {rows.map(([label, value]) => (
+                        <div key={label} className="grid grid-cols-[minmax(6rem,10rem)_1fr_auto] items-center gap-3 text-sm">
+                            <span className="truncate text-gray-300" title={label}>{label}</span>
+                            <div className="h-5 overflow-hidden rounded bg-gray-700">
+                                <div className="h-full rounded bg-spotify-green" style={{ width: `${maxValue > 0 ? Math.max(2, value / maxValue * 100) : 0}%` }} />
+                            </div>
+                            <span className="min-w-12 text-right text-gray-400">{metricField ? value.toFixed(2) : value}</span>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+        case 'PieChart': {
+            const groupField = config.groupBy || ({
+                Tasks: 'status',
+                Transactions: 'category',
+                Shows: 'city',
+                Releases: 'title',
+            }[config.dataSource]);
+            const groups = new Map<string, number>();
+            data.forEach((row, index) => {
+                const rawLabel = row[groupField];
+                const label = typeof rawLabel === 'string' || typeof rawLabel === 'number'
+                    ? String(rawLabel)
+                    : `Record ${index + 1}`;
+                groups.set(label, (groups.get(label) || 0) + 1);
+            });
+            const rows = [...groups.entries()];
+            const total = rows.reduce((sum, [, count]) => sum + count, 0);
+            const colors = ['#1DB954', '#8B5CF6', '#F59E0B', '#3B82F6', '#EF4444', '#14B8A6', '#EC4899'];
+            let position = 0;
+            const segments = rows.map(([, count], index) => {
+                const start = position;
+                position += total ? count / total * 100 : 0;
+                return `${colors[index % colors.length]} ${start}% ${position}%`;
+            }).join(', ');
+            return (
+                <div className="flex flex-col items-center gap-6 sm:flex-row">
+                    <div
+                        className="h-40 w-40 shrink-0 rounded-full"
+                        role="img"
+                        aria-label={`${total} records grouped by ${groupField}`}
+                        style={{ background: `conic-gradient(${segments})` }}
+                    />
+                    <ul className="grid gap-2 text-sm sm:grid-cols-2">
+                        {rows.map(([label, count], index) => (
+                            <li key={label} className="flex items-center gap-2 text-gray-300">
+                                <span className="h-3 w-3 shrink-0 rounded-sm" style={{ backgroundColor: colors[index % colors.length] }} />
+                                <span>{label}: {count} ({total ? Math.round(count / total * 100) : 0}%)</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            );
+        }
         default:
             return <pre className="text-xs bg-gray-900 p-4 rounded-md overflow-x-auto">{JSON.stringify(data, null, 2)}</pre>;
     }
@@ -104,6 +174,7 @@ export const Reports: React.FC<{
 
     const [insights, setInsights] = useState<Insight[]>([]);
     const [isLoadingInsights, setIsLoadingInsights] = useState(false);
+    const [insightError, setInsightError] = useState('');
     const [isBuilderOpen, setIsBuilderOpen] = useState(false);
     const [generatedReport, setGeneratedReport] = useState<{ config: ReportConfig, data: any[] } | null>(null);
 
@@ -120,11 +191,14 @@ export const Reports: React.FC<{
 
     const fetchInsights = async () => {
         setIsLoadingInsights(true);
+        setInsightError('');
         const taskId = `insights-${Date.now()}`;
         window.dispatchEvent(new CustomEvent('start-task', { detail: { id: taskId, name: 'Generating AI insights...', estimatedDuration: 25 } }));
         try {
             const result = await generateReportInsights(appContext, bandProfile);
             setInsights(result);
+        } catch (error) {
+            setInsightError(error instanceof Error ? error.message : 'Could not generate insights.');
         } finally {
             setIsLoadingInsights(false);
             window.dispatchEvent(new CustomEvent('end-task', { detail: { id: taskId } }));
@@ -156,16 +230,18 @@ export const Reports: React.FC<{
     const completedTasks = tasks.filter(t => t.status === TaskStatus.Done).length;
     const taskCompletionRate = totalTasks > 0 ? ((completedTasks / totalTasks) * 100).toFixed(0) + '%' : 'N/A';
 
+    const now = Date.now();
+    const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
     const incomeLast30Days = transactions
-        .filter(t => t.type === TransactionType.Income && new Date(t.date) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+        .filter(t => t.type === TransactionType.Income && new Date(t.date).getTime() >= thirtyDaysAgo && new Date(t.date).getTime() <= now)
         .reduce((sum, t) => sum + t.amount, 0);
 
     const expenseLast30Days = transactions
-        .filter(t => t.type === TransactionType.Expense && new Date(t.date) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+        .filter(t => t.type === TransactionType.Expense && new Date(t.date).getTime() >= thirtyDaysAgo && new Date(t.date).getTime() <= now)
         .reduce((sum, t) => sum + t.amount, 0);
 
     const songsCompletedThisQuarter = releases
-        .filter(r => new Date(r.releaseDate) > new Date(Date.now() - 90 * 24 * 60 * 60 * 1000))
+        .filter(r => new Date(r.releaseDate).getTime() >= now - 90 * 24 * 60 * 60 * 1000 && new Date(r.releaseDate).getTime() <= now)
         .reduce((sum, r) => sum + r.trackCount, 0);
 
 
@@ -208,6 +284,7 @@ export const Reports: React.FC<{
                         )) : <p className="text-gray-500 italic">Click 'Generate Insights' to have AI analyze your band's performance and find opportunities.</p>}
                     </div>
                 )}
+                {insightError && <p role="alert" className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{insightError}</p>}
             </div>
 
             {/* Generated Report */}
@@ -233,6 +310,7 @@ const ReportBuilderModal: React.FC<{
 }> = ({ projects, users, onClose, onGenerate, activeBandId }) => {
     const [prompt, setPrompt] = useState('');
     const [isPromptLoading, setIsPromptLoading] = useState(false);
+    const [promptError, setPromptError] = useState('');
     const [config, setConfig] = useState<Partial<ReportConfig>>({
         dataSource: 'Tasks',
         displayAs: 'Table',
@@ -242,13 +320,18 @@ const ReportBuilderModal: React.FC<{
     const handlePromptGenerate = async () => {
         if(!prompt) return;
         setIsPromptLoading(true);
+        setPromptError('');
         const taskId = `report-config-${Date.now()}`;
         window.dispatchEvent(new CustomEvent('start-task', { detail: { id: taskId, name: 'Building report from prompt...', estimatedDuration: 10 } }));
         try {
             const generatedConfig = await generateReportConfigFromPrompt(prompt, projects, users);
             if (generatedConfig) {
                 setConfig(prev => ({...prev, ...generatedConfig}));
+            } else {
+                setPromptError('The AI could not build a report from that prompt. Try a more specific request or use the manual builder.');
             }
+        } catch (error) {
+            setPromptError(error instanceof Error ? error.message : 'Could not build a report from that prompt.');
         } finally {
             setIsPromptLoading(false);
             window.dispatchEvent(new CustomEvent('end-task', { detail: { id: taskId } }));
@@ -294,6 +377,7 @@ const ReportBuilderModal: React.FC<{
                                 {isPromptLoading ? 'Generating...' : 'Generate'}
                             </button>
                         </div>
+                        {promptError && <p role="alert" className="mt-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{promptError}</p>}
                     </div>
 
                     <div className="text-center text-gray-500 font-bold">OR</div>

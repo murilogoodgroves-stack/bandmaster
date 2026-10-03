@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { getUserStorageKey } from '../state/userStorageScope';
 
 const normalizeStoredValue = <T,>(value: unknown, fallback: T): T => {
   if (value === null || value === undefined) return fallback;
@@ -15,6 +16,7 @@ const normalizeStoredValue = <T,>(value: unknown, fallback: T): T => {
 };
 
 function useLocalStorage<T>(key: string, initialValue: T): [T, React.Dispatch<React.SetStateAction<T>>] {
+  const scopedKey = getUserStorageKey(key);
   const initialValueRef = useRef(initialValue);
 
   useEffect(() => {
@@ -27,7 +29,7 @@ function useLocalStorage<T>(key: string, initialValue: T): [T, React.Dispatch<Re
     }
 
     try {
-      const item = window.localStorage.getItem(key);
+      const item = window.localStorage.getItem(scopedKey);
       if (!item) {
         return initialValueRef.current;
       }
@@ -35,10 +37,10 @@ function useLocalStorage<T>(key: string, initialValue: T): [T, React.Dispatch<Re
       const parsed = JSON.parse(item);
       return normalizeStoredValue(parsed, initialValueRef.current);
     } catch (error) {
-      console.warn(`Error reading localStorage key "${key}":`, error);
+      console.warn(`Error reading localStorage key "${scopedKey}":`, error);
       return initialValueRef.current;
     }
-  }, [key]);
+  }, [scopedKey]);
 
   const [storedValue, setStoredValue] = useState<T>(readValue);
   const isUpdateFromWithin = useRef(false);
@@ -51,11 +53,11 @@ function useLocalStorage<T>(key: string, initialValue: T): [T, React.Dispatch<Re
 
           if (typeof window !== 'undefined') {
             const safeValue = normalizeStoredValue(valueToStore, initialValueRef.current);
-            window.localStorage.setItem(key, JSON.stringify(safeValue));
+            window.localStorage.setItem(scopedKey, JSON.stringify(safeValue));
 
             isUpdateFromWithin.current = true;
             window.dispatchEvent(new StorageEvent('storage', {
-              key,
+              key: scopedKey,
               newValue: JSON.stringify(safeValue),
               storageArea: window.localStorage,
             }));
@@ -65,22 +67,22 @@ function useLocalStorage<T>(key: string, initialValue: T): [T, React.Dispatch<Re
           return valueToStore;
         });
       } catch (error) {
-        console.error(`Error setting localStorage key "${key}":`, error);
+        console.error(`Error setting localStorage key "${scopedKey}":`, error);
       }
     },
-    [key]
+    [scopedKey]
   );
 
   useEffect(() => {
     const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === key && event.newValue) {
+      if (event.key === scopedKey && event.newValue) {
         if (isUpdateFromWithin.current) return;
 
         try {
           const newValue = JSON.parse(event.newValue);
           setStoredValue(normalizeStoredValue(newValue, initialValueRef.current));
         } catch (error) {
-          console.error(`Error parsing storage change for key "${key}":`, error);
+          console.error(`Error parsing storage change for key "${scopedKey}":`, error);
         }
       }
     };
@@ -89,7 +91,7 @@ function useLocalStorage<T>(key: string, initialValue: T): [T, React.Dispatch<Re
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, [key]);
+  }, [scopedKey]);
 
   useEffect(() => {
     setStoredValue(readValue());

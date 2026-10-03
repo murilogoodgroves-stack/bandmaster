@@ -23,7 +23,7 @@ interface GigsProps {
     setEmailTemplates?: React.Dispatch<React.SetStateAction<EmailTemplate[]>>;
 }
 
-export const Gigs: React.FC<GigsProps> = ({ gigs: allGigs, setGigs, venues: allVenues, setVenues, activeBandId, bands, setInvoices, emailTemplates, setEmailTemplates }) => {
+export const Gigs: React.FC<GigsProps> = ({ gigs: allGigs, setGigs, venues: allVenues, setVenues, activeBandId, bands, setInvoices, bandSettings, emailTemplates, setEmailTemplates }) => {
     const gigs = useMemo(() => allGigs.filter(g => g.bandId === activeBandId), [allGigs, activeBandId]);
     const venues = useMemo(() => allVenues.filter(v => v.bandId === activeBandId), [allVenues, activeBandId]);
     const activeBand = useMemo(() => bands.find(b => b.id === activeBandId) || { name: 'Unknown Band', genre: 'Unknown', id: activeBandId }, [bands, activeBandId]);
@@ -32,15 +32,24 @@ export const Gigs: React.FC<GigsProps> = ({ gigs: allGigs, setGigs, venues: allV
     const [venueSearch, setVenueSearch] = useState({ city: '', style: '', capacity: '100-300' });
     const [foundVenues, setFoundVenues] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [venueSearchError, setVenueSearchError] = useState('');
     const [selectedGig, setSelectedGig] = useState<Gig | null>(null);
     const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
     const handleSearchVenues = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSearching(true);
-        const results = await searchVenues(venueSearch.style, venueSearch.city, venueSearch.capacity, venues);
-        setFoundVenues(results);
-        setIsSearching(false);
+        setVenueSearchError('');
+        setFoundVenues([]);
+        try {
+            const results = await searchVenues(venueSearch.style, venueSearch.city, venueSearch.capacity, venues);
+            setFoundVenues(results);
+        } catch (error) {
+            console.error('Could not search for venues:', error);
+            setVenueSearchError(error instanceof Error ? error.message : 'Venue search failed. Please try again.');
+        } finally {
+            setIsSearching(false);
+        }
     };
 
     const handleSaveVenue = (v: any) => {
@@ -123,6 +132,7 @@ export const Gigs: React.FC<GigsProps> = ({ gigs: allGigs, setGigs, venues: allV
                 <GigDetailModal 
                     gig={selectedGig} 
                     activeBand={activeBand}
+                    bandSettings={bandSettings}
                     setInvoices={setInvoices}
                     onClose={() => setSelectedGig(null)} 
                     onUpdate={(updated) => setGigs(prev => prev.map(g => g.id === updated.id ? updated : g))}
@@ -157,6 +167,7 @@ export const Gigs: React.FC<GigsProps> = ({ gigs: allGigs, setGigs, venues: allV
                                 {isSearching ? 'Searching...' : 'Search'}
                             </button>
                         </form>
+                        {venueSearchError && <p role="alert" className="mt-3 text-sm text-red-300">{venueSearchError}</p>}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -223,12 +234,13 @@ const GigPipeline: React.FC<{ gigs: Gig[], setGigs: React.Dispatch<React.SetStat
 const GigDetailModal: React.FC<{ 
     gig: Gig; 
     activeBand: BandProfile;
+    bandSettings: BandSettings;
     setInvoices?: React.Dispatch<React.SetStateAction<Invoice[]>>;
     onClose: () => void; 
     onUpdate: (gig: Gig) => void;
     onDelete: (id: string) => void;
     onOpenEmail: () => void;
-}> = ({ gig, activeBand, setInvoices, onClose, onUpdate, onDelete, onOpenEmail }) => {
+}> = ({ gig, activeBand, bandSettings, setInvoices, onClose, onUpdate, onDelete, onOpenEmail }) => {
     const [edited, setEdited] = useState<Gig>(gig);
 
     const handleSave = () => {
@@ -248,14 +260,14 @@ const GigDetailModal: React.FC<{
             dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
             status: 'Draft',
             issuer: {
-                name: activeBand?.name || 'Band Name',
-                address: 'Band Address',
-                taxId: 'TAX-ID-123',
-                bankDetails: 'Bank Details'
+                name: bandSettings.issuerName,
+                address: bandSettings.issuerAddress,
+                taxId: bandSettings.issuerTaxId,
+                bankDetails: bandSettings.issuerBankDetails,
             },
             recipient: {
-                name: gig.location,
-                address: 'Venue Address'
+                name: gig.clientName || gig.location,
+                address: '',
             },
             items: [
                 {
@@ -269,7 +281,7 @@ const GigDetailModal: React.FC<{
         };
 
         setInvoices(prev => [...prev, newInvoice]);
-        alert(`Invoice ${newInvoice.invoiceNumber} generated successfully!`);
+        alert(`Draft ${newInvoice.invoiceNumber} created. Review the invoice details before using it; PDF export is not available yet.`);
     };
 
     return (
@@ -391,16 +403,34 @@ const GigEmailModal: React.FC<{
     const [generatedEmail, setGeneratedEmail] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+    const [generationError, setGenerationError] = useState('');
+    const [copyError, setCopyError] = useState('');
+    const [copyStatus, setCopyStatus] = useState('');
 
     const handleGenerate = async () => {
         setIsGenerating(true);
+        setGenerationError('');
+        setGeneratedEmail('');
         try {
             const email = await generateGigEmail(gig, bandProfile, tone, length, customPrompt);
             setGeneratedEmail(email);
         } catch (error) {
-            console.error(error);
+            console.error('Could not generate the gig outreach email:', error);
+            setGenerationError(error instanceof Error ? error.message : 'The email could not be generated. Please try again.');
         } finally {
             setIsGenerating(false);
+        }
+    };
+
+    const handleCopyEmail = async () => {
+        try {
+            await navigator.clipboard.writeText(generatedEmail);
+            setCopyError('');
+            setCopyStatus('Draft copied. Send it using your email provider; Bandmaster does not send this email.');
+        } catch (error) {
+            console.error('Could not copy the gig outreach email:', error);
+            setCopyStatus('');
+            setCopyError('Could not access the clipboard. Select and copy the generated email manually.');
         }
     };
 
@@ -509,7 +539,7 @@ const GigEmailModal: React.FC<{
                             {generatedEmail && (
                                 <div className="flex gap-2">
                                     <button 
-                                        onClick={() => { navigator.clipboard.writeText(generatedEmail); alert('Copied to clipboard!'); }}
+                                        onClick={handleCopyEmail}
                                         className="text-xs text-gray-400 hover:text-white flex items-center gap-1 bg-gray-800 px-2 py-1 rounded"
                                     >
                                         Copy
@@ -524,6 +554,9 @@ const GigEmailModal: React.FC<{
                                 </div>
                             )}
                         </div>
+                        {generationError && <p role="alert" className="text-sm text-red-300 mb-3">{generationError}</p>}
+                        {copyError && <p role="alert" className="text-sm text-red-300 mb-3">{copyError}</p>}
+                        {copyStatus && <p role="status" className="text-sm text-blue-300 mb-3">{copyStatus}</p>}
                         
                         <div className="flex-1 bg-gray-900 border border-gray-800 rounded-xl p-6 overflow-y-auto font-serif text-lg leading-relaxed text-gray-300">
                             {generatedEmail ? (
@@ -538,8 +571,8 @@ const GigEmailModal: React.FC<{
 
                         {generatedEmail && (
                             <div className="mt-4 flex justify-end">
-                                <button className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg flex items-center gap-2 transition-all shadow-lg shadow-green-900/20">
-                                    <SendIcon className="w-4 h-4" /> Send Email
+                                <button type="button" disabled title="Email sending is not available. Copy the draft and send it using your email provider." className="bg-gray-700 text-gray-400 font-bold py-2 px-6 rounded-lg flex items-center gap-2 cursor-not-allowed">
+                                    <SendIcon className="w-4 h-4" /> Sending unavailable
                                 </button>
                             </div>
                         )}
@@ -556,17 +589,22 @@ const OpeningSlotsFinder: React.FC<{ onAddLead: (opp: OpeningSlotOpportunity) =>
     const [dateRange, setDateRange] = useState('Next 3 months');
     const [results, setResults] = useState<OpeningSlotOpportunity[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [searchError, setSearchError] = useState('');
+    const [showTip, setShowTip] = useState(true);
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
+        setSearchError('');
+        setResults([]);
         const taskId = `find-openings-${Date.now()}`;
         window.dispatchEvent(new CustomEvent('start-task', { detail: { id: taskId, name: 'Finding opening slots...', estimatedDuration: 45 } }));
         try {
             const data = await findOpeningSlotOpportunities(genre, city, dateRange);
             setResults(data);
-        } catch (e) {
-            console.error(e);
+        } catch (error) {
+            console.error('Could not find opening slot opportunities:', error);
+            setSearchError(error instanceof Error ? error.message : 'Opportunity search failed. Please try again.');
         } finally {
             setIsLoading(false);
             window.dispatchEvent(new CustomEvent('end-task', { detail: { id: taskId } }));
@@ -575,7 +613,7 @@ const OpeningSlotsFinder: React.FC<{ onAddLead: (opp: OpeningSlotOpportunity) =>
 
     return (
         <div>
-            <Tip onDismiss={() => {}}>Find touring bands playing mid-sized venues in your city. Add them to your pipeline to pitch yourself as the support act.</Tip>
+            {showTip && <Tip onDismiss={() => setShowTip(false)}>Find touring bands playing mid-sized venues in your city. Add them to your pipeline to pitch yourself as the support act.</Tip>}
             <div className="bg-gray-800 p-6 rounded-lg mb-6">
                 <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                     <div><label className="text-xs text-gray-400">Target City</label><input type="text" value={city} onChange={e => setCity(e.target.value)} className="w-full bg-gray-700 p-2 rounded mt-1" placeholder="e.g. Berlin" required/></div>
@@ -584,6 +622,7 @@ const OpeningSlotsFinder: React.FC<{ onAddLead: (opp: OpeningSlotOpportunity) =>
                     <button type="submit" disabled={isLoading} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded disabled:bg-gray-600">{isLoading ? 'Searching...' : 'Find Opportunities'}</button>
                 </form>
             </div>
+            {searchError && <p role="alert" className="mb-4 text-sm text-red-300">{searchError}</p>}
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {results.map((opp, i) => (

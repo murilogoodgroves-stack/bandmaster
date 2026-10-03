@@ -30,7 +30,7 @@ export const EPK: React.FC<{
     setEpkVideoId: React.Dispatch<React.SetStateAction<string>>
 }> = ({ bands, activeBandId, releases: allReleases, media: allMediaAssets, articles: allArticles, tours: allTours, bandBio, setBandBio, epkPhotoId, setEpkPhotoId, epkVideoId, setEpkVideoId }) => {
     const [editMode, setEditMode] = useState(false);
-    const [showLinkModal, setShowLinkModal] = useState(false);
+    const [linkMessage, setLinkMessage] = useState('');
     
     const activeBand = useMemo(() => bands.find(b => b.id === activeBandId) || bands[0], [bands, activeBandId]);
     const releases = useMemo(() => allReleases.filter(r => r.bandId === activeBandId), [allReleases, activeBandId]);
@@ -42,6 +42,8 @@ export const EPK: React.FC<{
     const contactEmail = `booking@${activeBand.name.toLowerCase().replace(/\s/g, '')}.band`;
 
     const featuredPhoto = mediaAssets.find(m => m.id === epkPhotoId) || mediaAssets.find(m => m.type === 'Photo');
+    const featuredPhotoUrl = featuredPhoto?.imageDataUrl
+        || [featuredPhoto?.assetPath, featuredPhoto?.folderPath].find(value => value?.startsWith('https://') || value?.startsWith('data:image/'));
     const featuredVideo = mediaAssets.find(m => m.id === epkVideoId) || mediaAssets.find(m => m.type === 'Video');
     const latestRelease = [...releases].sort((a,b) => new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime())[0];
     const upcomingShows = tours.flatMap(t => t.shows).filter(s => new Date(s.date) >= new Date()).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -49,10 +51,15 @@ export const EPK: React.FC<{
     const photoOptions = mediaAssets.filter(m => m.type === 'Photo');
     const videoOptions = mediaAssets.filter(m => m.type === 'Video');
 
-    const handleCopyLink = () => {
-        navigator.clipboard.writeText(window.location.href);
-        setShowLinkModal(true);
-        setTimeout(() => setShowLinkModal(false), 2500);
+    const handleCopyLink = async () => {
+        setLinkMessage('');
+        try {
+            await navigator.clipboard.writeText(window.location.href);
+            setLinkMessage('Private app link copied. Recipients must sign in; public EPK publishing is not available yet.');
+        } catch (error) {
+            console.error('Could not copy the private EPK link:', error);
+            setLinkMessage('Could not access the clipboard. Copy the page URL from your browser address bar.');
+        }
     };
 
     return (
@@ -63,7 +70,7 @@ export const EPK: React.FC<{
                 <div className="flex gap-4">
                     <button onClick={handleCopyLink} className="flex items-center bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">
                         <LinkIcon className="h-5 w-5 mr-2" />
-                        Copy Shareable Link
+                        Copy Private EPK Link
                     </button>
                     <button onClick={() => setEditMode(!editMode)} className="flex items-center bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg">
                         <EditIcon className="h-5 w-5 mr-2" />
@@ -71,6 +78,7 @@ export const EPK: React.FC<{
                     </button>
                 </div>
             </div>
+            {linkMessage && <p role="status" className="mb-4 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-sm text-blue-200">{linkMessage}</p>}
 
             {/* EPK Content */}
             <div className="bg-gray-800 p-6 sm:p-8 lg:p-12 rounded-xl shadow-2xl max-w-4xl mx-auto">
@@ -82,9 +90,10 @@ export const EPK: React.FC<{
                 {/* Main Photo */}
                 <div className="mb-8">
                     {featuredPhoto ? (
-                         // In a real app, this would be an actual image URL from storage
-                        <div className="bg-gray-700 w-full aspect-video rounded-lg flex items-center justify-center text-gray-500">
-                           <p>Featured Photo: "{featuredPhoto.name}"</p>
+                        <div className="bg-gray-700 w-full aspect-video rounded-lg flex items-center justify-center text-gray-500 overflow-hidden">
+                           {featuredPhotoUrl
+                               ? <img src={featuredPhotoUrl} alt={featuredPhoto.name} className="h-full w-full object-cover" />
+                               : <p>Featured photo unavailable in this browser: "{featuredPhoto.name}"</p>}
                         </div>
                     ) : <div className="bg-gray-700 w-full aspect-video rounded-lg flex items-center justify-center text-gray-500"><p>No photo selected</p></div>}
                     {editMode && (
@@ -164,7 +173,6 @@ export const EPK: React.FC<{
                                         <p className="font-bold text-white">{new Date(show.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                                         <p className="text-gray-300">{show.venue}, {show.city}</p>
                                     </div>
-                                    <button className="text-sm bg-spotify-green/80 text-white font-bold py-1 px-3 rounded-lg hover:bg-spotify-green">Tickets</button>
                                 </div>
                             ))}
                         </div>
@@ -178,13 +186,6 @@ export const EPK: React.FC<{
                 </footer>
 
             </div>
-
-             {/* Link Copied Modal */}
-             {showLinkModal && (
-                <div className="fixed bottom-10 right-10 bg-spotify-green text-white py-2 px-5 rounded-lg shadow-lg animate-pulse">
-                    Shareable link copied to clipboard!
-                </div>
-            )}
         </div>
     );
 };

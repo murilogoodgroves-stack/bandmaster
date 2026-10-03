@@ -1,5 +1,6 @@
-import { GoogleGenAI } from "@google/genai";
 import { BandProfile, SearchResult, WebSource, Song, ProductionProject, Task, Transaction, Tour, Release, MerchItem, CalendarEvent, PressContact, LabelContact, RadioContact, RadioOpportunity, Venue, FestivalOpportunity, FundingOpportunity, SoundProfileAnalysis, SoundMatchOpportunity, ResidencyOpportunity, OpeningSlotOpportunity, Gig } from '../types';
+import { authenticatedFetch } from './supabaseClient';
+import { getUserStorageKey } from '../state/userStorageScope';
 
 // Provider configurations
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -12,12 +13,10 @@ const OPENROUTER_MODEL = "google/gemini-2.0-flash-exp:free";
 const MINIMAX_MODEL = "abab6.5s-chat";
 const MINIMAX_IMAGE_MODEL = "minimax-v2-image-generation";
 const GROQ_MODEL = "llama-3.3-70b-versatile";
-const GEMINI_MODEL = "gemini-2.5-flash";
-
-const getOpenRouterKey = () => import.meta.env.VITE_OPENROUTER_API_KEY;
-const getMiniMaxKey = () => import.meta.env.VITE_MINIMAX_API_KEY;
-const getGroqKey = () => import.meta.env.VITE_GROQ_API_KEY;
-const getGeminiKey = () => import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : undefined);
+const getOpenRouterKey = () => undefined;
+const getMiniMaxKey = () => undefined;
+const getGroqKey = () => undefined;
+const getGeminiKey = () => undefined;
 
 // AI Status tracking
 export type AIProviderStatus = 'online' | 'fallback' | 'offline' | 'error';
@@ -82,9 +81,14 @@ const resetProviderStats = () => {
 
 // API Usage tracking
 let apiUsageLogs: APIUsageLog[] = [];
+let loadedUsageStorageKey = '';
 const loadAPIUsageLogs = () => {
+    const storageKey = getUserStorageKey('apiUsageLogs');
+    if (loadedUsageStorageKey === storageKey) return;
+    loadedUsageStorageKey = storageKey;
+    apiUsageLogs = [];
     try {
-        const stored = localStorage.getItem('apiUsageLogs');
+        const stored = localStorage.getItem(storageKey);
         if (stored) {
             apiUsageLogs = JSON.parse(stored);
             // Keep only logs from last 30 days
@@ -96,9 +100,8 @@ const loadAPIUsageLogs = () => {
     }
 };
 
-loadAPIUsageLogs();
-
 export const logAPIUsage = (provider: string, action: string, success: boolean, tokensUsed?: number) => {
+    loadAPIUsageLogs();
     const log: APIUsageLog = {
         id: `api-${Date.now()}-${Math.random()}`,
         timestamp: new Date().toISOString(),
@@ -108,7 +111,7 @@ export const logAPIUsage = (provider: string, action: string, success: boolean, 
         success
     };
     apiUsageLogs.push(log);
-    localStorage.setItem('apiUsageLogs', JSON.stringify(apiUsageLogs));
+    localStorage.setItem(loadedUsageStorageKey, JSON.stringify(apiUsageLogs));
     
     // Update provider stats
     const providerEntry = apiProviders.find(p => p.name === provider);
@@ -122,10 +125,12 @@ export const logAPIUsage = (provider: string, action: string, success: boolean, 
 };
 
 export const getAPIUsageLogs = (): APIUsageLog[] => {
+    loadAPIUsageLogs();
     return apiUsageLogs;
 };
 
 export const getAPIUsageStats = () => {
+    loadAPIUsageLogs();
     const stats = {
         totalCalls: apiUsageLogs.length,
         successfulCalls: apiUsageLogs.filter(l => l.success).length,
@@ -182,6 +187,24 @@ const updateAIStatus = (status: AIStatus) => {
 // Helper to call AI with fallback logic
 // Priority: OpenRouter -> Groq -> MiniMax -> Google Gemini
 export const callAI = async (messages: { role: string, content: string }[], jsonMode = false): Promise<string> => {
+    const proxyResponse = await authenticatedFetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages, jsonMode }),
+    });
+    const proxyResult = await proxyResponse.json().catch(() => null);
+    if (!proxyResponse.ok || typeof proxyResult?.content !== 'string') {
+        const message = typeof proxyResult?.message === 'string' ? proxyResult.message : `AI request failed with status ${proxyResponse.status}.`;
+        updateAIStatus({ provider: 'None', status: 'error', message });
+        logAPIUsage('Unknown', 'AI Query', false);
+        throw new Error(message);
+    }
+    const provider = typeof proxyResult.provider === 'string' ? proxyResult.provider : 'AI';
+    const tokensUsed = typeof proxyResult.tokensUsed === 'number' ? proxyResult.tokensUsed : undefined;
+    updateAIStatus({ provider, status: 'online' });
+    logAPIUsage(provider, 'AI Query', true, tokensUsed);
+    return proxyResult.content;
+
     const openRouterKey = getOpenRouterKey();
     const groqKey = getGroqKey();
     const miniMaxKey = getMiniMaxKey();
@@ -295,29 +318,6 @@ export const callAI = async (messages: { role: string, content: string }[], json
         }
     }
 
-    // 4. Try Google Gemini (Quaternary - Built-in)
-    if (geminiKey) {
-        try {
-            const ai = new GoogleGenAI({ apiKey: geminiKey });
-            const response = await ai.models.generateContent({
-                model: GEMINI_MODEL,
-                contents: messages.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.content }] })),
-                config: {
-                    responseMimeType: jsonMode ? "application/json" : "text/plain"
-                }
-            });
-
-            if (response.text) {
-                updateAIStatus({ provider: 'Google Gemini', status: 'fallback', message: 'All external providers failed, using built-in Gemini' });
-                logAPIUsage('Google Gemini', 'AI Query', true);
-                return response.text;
-            }
-        } catch (error) {
-            console.error("Gemini error:", error);
-            logAPIUsage('Google Gemini', 'AI Query', false);
-        }
-    }
-
     const finalError = "All AI providers failed. Please check your API keys and quotas.";
     updateAIStatus({ provider: 'None', status: 'error', message: finalError });
     logAPIUsage('Unknown', 'AI Query', false);
@@ -326,9 +326,22 @@ export const callAI = async (messages: { role: string, content: string }[], json
 
 // Helper to generate images with fallback logic
 export const generateImage = async (prompt: string): Promise<string> => {
+    const proxyResponse = await authenticatedFetch('/api/ai/image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+    });
+    const proxyResult = await proxyResponse.json().catch(() => null);
+    if (!proxyResponse.ok || typeof proxyResult?.image !== 'string') {
+        const message = typeof proxyResult?.message === 'string' ? proxyResult.message : `Image generation failed with status ${proxyResponse.status}.`;
+        updateAIStatus({ provider: 'None', status: 'error', message });
+        throw new Error(message);
+    }
+    updateAIStatus({ provider: typeof proxyResult.provider === 'string' ? proxyResult.provider : 'AI', status: 'online' });
+    return proxyResult.image;
+
     const miniMaxKey = getMiniMaxKey();
     const openRouterKey = getOpenRouterKey();
-    const geminiKey = getGeminiKey();
 
     // 1. Try MiniMax first for images if key is available
     if (miniMaxKey) {
@@ -357,32 +370,6 @@ export const generateImage = async (prompt: string): Promise<string> => {
             console.warn(`MiniMax Image failed (Status: ${response.status})`);
         } catch (error) {
             console.error("MiniMax Image error:", error);
-        }
-    }
-
-    // 2. Try Gemini (Fallback - Built-in)
-    if (geminiKey) {
-        try {
-            const ai = new GoogleGenAI({ apiKey: geminiKey });
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash-image',
-                contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                config: {
-                    responseModalities: ['TEXT', 'IMAGE']
-                }
-            });
-
-            // Find the image part
-            for (const part of response.candidates?.[0]?.content?.parts || []) {
-                if (part.inlineData) {
-                    updateAIStatus({ provider: 'Google Gemini', status: 'fallback', message: 'Primary image provider failed, using Gemini' });
-                    const mimeType = part.inlineData.mimeType || 'image/png';
-                    return `data:${mimeType};base64,${part.inlineData.data}`;
-                }
-            }
-            console.warn("Gemini Image generation returned no image data");
-        } catch (error) {
-            console.error("Gemini Image error:", error);
         }
     }
 
