@@ -43,6 +43,23 @@ if (!isDatabaseConfigured) {
   try {
     await query('SELECT 1 AS connection_ok');
     console.log(`Neon/Postgres: PASS (read-only SELECT succeeded; source=${resolveDatabaseSource()}).`);
+
+    const schema = await query(
+      `SELECT table_name
+       FROM information_schema.tables
+       WHERE table_schema = current_schema()
+         AND table_name = ANY($1::text[])`,
+      [['user_app_state_snapshots', 'cron_logs']],
+    );
+    const presentTables = new Set(schema.rows.map((row: { table_name: string }) => row.table_name));
+    const missingTables = ['user_app_state_snapshots', 'cron_logs'].filter((name) => !presentTables.has(name));
+
+    if (missingTables.length > 0) {
+      console.error(`Neon schema: BLOCKED (missing expected tables: ${missingTables.join(', ')}; no schema changes were made).`);
+      checksPassed = false;
+    } else {
+      console.log('Neon schema: PASS (expected tables exist; checked read-only).');
+    }
   } catch {
     console.error(`Neon/Postgres: FAIL (connection/query failed; source=${resolveDatabaseSource()}; details omitted to avoid leaking credentials).`);
     checksPassed = false;

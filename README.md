@@ -19,7 +19,7 @@ The development server binds to loopback. Do not expose it to the public interne
 
 The database integration test is not part of the default test command. To run it, set `RUN_DATABASE_INTEGRATION_TESTS=true` and point `DATABASE_URL` at a dedicated disposable test database; it creates and removes a test snapshot. Never run database integration tests against shared or production data.
 
-Run `npm run check:integrations` for a non-destructive check of the Supabase Auth health endpoint and a read-only Postgres `SELECT 1`. It does not sign in or create a user. Neon testing is blocked until a supported database connection variable is configured locally.
+Run `npm run check:integrations` for a non-destructive check of the Supabase Auth health endpoint and Neon/Postgres connectivity. Database checks use only `SELECT` statements, including a read-only check for the expected app tables; they do not sign in, create users, or change database schema/data. Neon testing is blocked until a supported database connection variable is configured locally.
 
 ## Architecture and readiness
 
