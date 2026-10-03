@@ -61,6 +61,11 @@ export async function createApp(options: { initializeDatabase?: boolean; serveFr
         auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
       })
     : null;
+  const aiGatewayConfigured = Boolean(
+    process.env.AI_GATEWAY_API_KEY
+    || process.env.VERCEL_OIDC_TOKEN
+    || process.env.VERCEL === '1'
+  );
 
   if (options.initializeDatabase !== false) {
     await initializeDatabase();
@@ -251,7 +256,7 @@ export async function createApp(options: { initializeDatabase?: boolean; serveFr
       },
       ai: {
         providers: ['Vercel AI Gateway'],
-        configured: Boolean(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN)
+        configured: aiGatewayConfigured
       }
     });
   });
@@ -264,8 +269,7 @@ export async function createApp(options: { initializeDatabase?: boolean; serveFr
       return res.status(400).json({ status: 'error', message: 'Provide 1–30 valid messages with no more than 40,000 characters total.' });
     }
 
-    const gatewayConfigured = Boolean(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN);
-    if (gatewayConfigured) {
+    if (aiGatewayConfigured) {
       try {
         const modelMessages: ModelMessage[] = jsonMode
           ? [{ role: 'system', content: 'Respond only with valid JSON. Do not include Markdown fences or explanatory text.' }, ...messages]

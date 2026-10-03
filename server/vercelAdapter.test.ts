@@ -4,13 +4,15 @@ import { once } from 'node:events';
 import test from 'node:test';
 import type { Request, Response } from 'express';
 
-test('Vercel Express handler serves API routes without local startup or database writes', async () => {
+test('Vercel Express handler uses platform OIDC without requiring a manually injected token', async () => {
   const previousVercel = process.env.VERCEL;
   const previousNodeEnv = process.env.NODE_ENV;
   const previousOidcToken = process.env.VERCEL_OIDC_TOKEN;
+  const previousGatewayApiKey = process.env.AI_GATEWAY_API_KEY;
   process.env.VERCEL = '1';
   process.env.NODE_ENV = 'production';
-  process.env.VERCEL_OIDC_TOKEN = 'test-oidc-token';
+  process.env.VERCEL_OIDC_TOKEN = '';
+  process.env.AI_GATEWAY_API_KEY = '';
 
   const server = createServer((req, res) => {
     void import('../api/[...path]').then(({ default: handler }) =>
@@ -46,5 +48,7 @@ test('Vercel Express handler serves API routes without local startup or database
     else process.env.NODE_ENV = previousNodeEnv;
     if (previousOidcToken === undefined) delete process.env.VERCEL_OIDC_TOKEN;
     else process.env.VERCEL_OIDC_TOKEN = previousOidcToken;
+    if (previousGatewayApiKey === undefined) delete process.env.AI_GATEWAY_API_KEY;
+    else process.env.AI_GATEWAY_API_KEY = previousGatewayApiKey;
   }
 });
