@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
+    "example:ai": "tsx index.ts",
     "check:integrations": "tsx scripts/check-integrations.ts",
     "test": "tsx --test projectPlanning.test.ts state/appStateHydration.test.ts state/userStorageScope.test.ts state/snapshotSecurity.test.ts state/bandBackup.test.ts state/receiptParsing.test.ts server/vercelAdapter.test.ts services/releaseMarketing.test.ts"
   },
@@ -15,6 +16,7 @@
     "@google/genai": "^1.29.0",
     "@supabase/supabase-js": "^2.117.2",
     "@types/node-cron": "^3.0.11",
+    "ai": "^7.0.127",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "node-cron": "^4.2.1",

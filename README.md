@@ -27,7 +27,7 @@ The client is a Vite/React application. Much of its current data is stored in br
 
 The Supabase GitHub integration is for applying Supabase database migrations from `supabase/migrations`; it does not deploy this Express/Vite app and does not supply the Neon connection string. This repository currently has no Supabase migrations because app snapshots are intended for Neon. Keep “Deploy to production” disabled unless/until Supabase migrations are deliberately added and reviewed.
 
-Configure `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` for the frontend and matching `SUPABASE_URL` and `SUPABASE_ANON_KEY` for the server. The anon key is a public identifier; do not expose service-role credentials. Configure email confirmation, password-reset redirect URLs, and SMTP in Supabase before customer signup. AI provider keys are server-only and must never use `VITE_` prefixes. Even with Supabase auth, production AI, uploads, and local-disk file serving remain deliberately disabled until quota/privacy controls and private object storage are ready. This repository is not yet ready for public customer data, payments, or paid acquisition.
+Configure `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` for the frontend and matching `SUPABASE_URL` and `SUPABASE_ANON_KEY` for the server. The anon key is a public identifier; do not expose service-role credentials. Configure email confirmation, password-reset redirect URLs, and SMTP in Supabase before customer signup. Text AI requests use the Vercel AI Gateway through the AI SDK and require an authenticated user. Keep `AI_GATEWAY_API_KEY` server-only; never use a `VITE_` prefix. Vercel deployments can use the platform-provided OIDC token; local development can use an AI Gateway key in ignored `.env.local`. Image generation and local-disk file serving remain disabled in production until quota/privacy controls and private object storage are ready. This repository is not yet ready for public customer data, payments, or paid acquisition.
 
 ## Vercel deployment
 
@@ -37,13 +37,15 @@ In the Vercel project, use the repository root, Vite framework preset, `npm run 
 
 - **Production and Preview runtime:** `DATABASE_URL` (Neon pooled connection URL), `SUPABASE_URL`, `SUPABASE_ANON_KEY`.
 - **Production and Preview build:** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (same Supabase project and publishable/anon key as the server variables).
-- **Optional server-only AI:** `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `MINIMAX_API_KEY`, or `GEMINI_API_KEY`. Do not configure `VITE_*` AI keys. Production AI endpoints remain disabled by the current safety gate.
+- **Text AI:** Vercel deployments use OIDC with Vercel AI Gateway; no Gateway key needs to be exposed to the browser. For local development outside a linked Vercel environment, set `AI_GATEWAY_API_KEY` in `.env.local`. `AI_GATEWAY_MODEL` is optional and defaults to the live-catalog-verified `moonshotai/kimi-k3`. Never set AI credentials with a `VITE_` prefix. Local development may retain direct-provider keys for the existing fallback path; production chat uses AI Gateway.
 
 Do not use the production Neon database for Preview deployments. Create a separate Neon branch/database for Preview, set its `DATABASE_URL` only in the Vercel Preview environment, and apply the migration there separately. Configure Supabase Authentication URL allowlists for the final Vercel deployment domain and `https://lovnis.art/**` only when the custom domain is attached. Set the Supabase Site URL to the actual production URL after DNS and HTTPS are verified.
 
-This Vercel adapter does not enable uploads, campaign delivery, AI endpoints currently disabled in production, or scheduled jobs. Local-disk upload persistence and cron scheduling are not available on Vercel Functions. Configure durable private storage and any required scheduled functions as separate reviewed work before claiming those capabilities. Use `npm run check:integrations` against each environment before accepting customer data.
+This Vercel adapter enables authenticated text chat through AI Gateway when deployment OIDC is available. Image generation, uploads, campaign delivery, and scheduled jobs are not enabled by this change. Local-disk upload persistence and cron scheduling are not available on Vercel Functions. Configure durable private storage and any required scheduled functions as separate reviewed work before claiming those capabilities. Use `npm run check:integrations` against each environment before accepting customer data.
 
 `npm run preview` previews only the static frontend; it does not emulate Vercel Functions. Production readiness still requires tested auth, database migration, backups/restore, custom-domain HTTPS, monitoring, and recovery.
+
+To run the standalone AI Gateway smoke example locally, put a valid `AI_GATEWAY_API_KEY` in the ignored `.env.local` file and run `npm run example:ai`. Do not commit or share the key.
 
 ## Initial market validation hypothesis
 

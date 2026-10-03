@@ -7,8 +7,10 @@ import type { Request, Response } from 'express';
 test('Vercel Express handler serves API routes without local startup or database writes', async () => {
   const previousVercel = process.env.VERCEL;
   const previousNodeEnv = process.env.NODE_ENV;
+  const previousOidcToken = process.env.VERCEL_OIDC_TOKEN;
   process.env.VERCEL = '1';
   process.env.NODE_ENV = 'production';
+  process.env.VERCEL_OIDC_TOKEN = 'test-oidc-token';
 
   const server = createServer((req, res) => {
     void import('../api/[...path]').then(({ default: handler }) =>
@@ -24,8 +26,12 @@ test('Vercel Express handler serves API routes without local startup or database
 
     const configResponse = await fetch(`http://127.0.0.1:${address.port}/api/config`);
     assert.equal(configResponse.status, 200);
-    const config = await configResponse.json() as { database: { configured: boolean } };
+    const config = await configResponse.json() as {
+      database: { configured: boolean };
+      ai: { configured: boolean };
+    };
     assert.equal(config.database.configured, false);
+    assert.equal(config.ai.configured, true);
 
     const protectedResponse = await fetch(`http://127.0.0.1:${address.port}/api/app-state`);
     assert.equal(protectedResponse.status, 401);
@@ -38,5 +44,7 @@ test('Vercel Express handler serves API routes without local startup or database
     else process.env.VERCEL = previousVercel;
     if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = previousNodeEnv;
+    if (previousOidcToken === undefined) delete process.env.VERCEL_OIDC_TOKEN;
+    else process.env.VERCEL_OIDC_TOKEN = previousOidcToken;
   }
 });

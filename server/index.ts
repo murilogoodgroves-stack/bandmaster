@@ -4,6 +4,7 @@ import cron from 'node-cron';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
 import { GoogleGenAI } from '@google/genai';
+import { generateText, type ModelMessage } from 'ai';
 import { createClient } from '@supabase/supabase-js';
 import { removeClientStoredSecrets } from '../state/snapshotSecurity';
 import { initializeDatabase, isDatabaseConfigured, query, getDatabaseStatus, getRecentCronLogs, writeCronLog, saveUserAppStateSnapshot, loadUserAppStateSnapshot } from './db';
@@ -13,6 +14,42 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsDir = path.resolve(__dirname, '../uploads');
+
+type AiChatMessage = {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+};
+
+const isAiChatRole = (value: unknown): value is AiChatMessage['role'] =>
+  value === 'system' || value === 'user' || value === 'assistant';
+
+const parseAiChatMessages = (value: unknown): AiChatMessage[] | null => {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 30) {
+    return null;
+  }
+
+  const messages: AiChatMessage[] = [];
+  for (const message of value) {
+    if (
+      typeof message !== 'object'
+      || message === null
+      || !('role' in message)
+      || !('content' in message)
+      || !isAiChatRole(message.role)
+      || typeof message.content !== 'string'
+      || message.content.length > 12_000
+    ) {
+      return null;
+    }
+    messages.push({
+      role: message.role,
+      content: message.content,
+    });
+  }
+
+  const totalCharacters = messages.reduce((total, message) => total + message.content.length, 0);
+  return totalCharacters <= 40_000 ? messages : null;
+};
 
 export async function createApp(options: { initializeDatabase?: boolean; serveFrontend?: boolean } = {}) {
   const app = express();
@@ -213,28 +250,55 @@ export async function createApp(options: { initializeDatabase?: boolean; serveFr
         configured: isDatabaseConfigured && Boolean(authClient),
       },
       ai: {
-        providers: ['OpenRouter', 'Groq', 'MiniMax', 'Google Gemini'],
-        configured: Boolean(
-          process.env.OPENROUTER_API_KEY ||
-          process.env.GROQ_API_KEY ||
-          process.env.MINIMAX_API_KEY ||
-          process.env.GEMINI_API_KEY
-        )
+        providers: ['Vercel AI Gateway'],
+        configured: Boolean(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN)
       }
     });
   });
 
   app.post('/api/ai/chat', async (req, res) => {
-    if (isProduction) {
-      return res.status(503).json({ status: 'unavailable', message: 'AI requests are disabled in production until quotas and privacy controls are configured.' });
-    }
-    const { messages, jsonMode } = req.body || {};
-    if (!Array.isArray(messages) || messages.length === 0 || messages.length > 30
-      || messages.some((message) => !message || !['system', 'user', 'assistant'].includes(message.role)
-        || typeof message.content !== 'string' || message.content.length > 12000)
-      || messages.reduce((total, message) => total + message.content.length, 0) > 40000
-      || (jsonMode !== undefined && typeof jsonMode !== 'boolean')) {
+    const body = req.body as { messages?: unknown; jsonMode?: unknown } | undefined;
+    const messages = parseAiChatMessages(body?.messages);
+    const jsonMode = body?.jsonMode;
+    if (!messages || (jsonMode !== undefined && typeof jsonMode !== 'boolean')) {
       return res.status(400).json({ status: 'error', message: 'Provide 1–30 valid messages with no more than 40,000 characters total.' });
+    }
+
+    const gatewayConfigured = Boolean(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN);
+    if (gatewayConfigured) {
+      try {
+        const modelMessages: ModelMessage[] = jsonMode
+          ? [{ role: 'system', content: 'Respond only with valid JSON. Do not include Markdown fences or explanatory text.' }, ...messages]
+          : messages;
+        const result = await generateText({
+          model: process.env.AI_GATEWAY_MODEL || 'moonshotai/kimi-k3',
+          messages: modelMessages,
+          temperature: 0.7,
+        });
+        if (!result.text.trim()) {
+          return res.status(502).json({ status: 'error', message: 'The AI Gateway returned an empty response.' });
+        }
+        return res.json({
+          status: 'ok',
+          provider: 'Vercel AI Gateway',
+          content: result.text,
+        });
+      } catch (error) {
+        console.error('Vercel AI Gateway request failed:', {
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+        });
+        return res.status(502).json({
+          status: 'error',
+          message: 'AI Gateway request failed. Check Gateway authentication, credits, budget, and model availability.',
+        });
+      }
+    }
+
+    if (isProduction) {
+      return res.status(503).json({
+        status: 'unavailable',
+        message: 'AI Gateway authentication is unavailable. Configure Vercel OIDC or AI_GATEWAY_API_KEY.',
+      });
     }
 
     const chatProviders = [
