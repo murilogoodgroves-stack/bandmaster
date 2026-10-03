@@ -29,7 +29,21 @@ The Supabase GitHub integration is for applying Supabase database migrations fro
 
 Configure `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` for the frontend and matching `SUPABASE_URL` and `SUPABASE_ANON_KEY` for the server. The anon key is a public identifier; do not expose service-role credentials. Configure email confirmation, password-reset redirect URLs, and SMTP in Supabase before customer signup. AI provider keys are server-only and must never use `VITE_` prefixes. Even with Supabase auth, production AI, uploads, and local-disk file serving remain deliberately disabled until quota/privacy controls and private object storage are ready. This repository is not yet ready for public customer data, payments, or paid acquisition.
 
-`npm run preview` previews the static frontend only. It is not a production server for the Express API or cron jobs. Vercel static hosting alone does not run this application's server. A production deployment needs a compatible persistent server runtime, the configured Neon/Postgres database, durable object storage, monitoring, backup/recovery, and a deployment-specific configuration.
+## Vercel deployment
+
+The Vercel adapter serves the Vite build as static output and routes `/api/*` requests to the Express serverless function in `api/[...path].ts`. Local development continues to use `npm run dev`. Vercel functions are stateless: production database schema is never auto-created by a function invocation. Before enabling database persistence, review and apply `database/migrations/001_user_app_state_snapshots.sql` to the intended Neon database using its SQL Editor.
+
+In the Vercel project, use the repository root, Vite framework preset, `npm run build` as the build command, and `dist` as the output directory. Configure these environment variables in Vercel Project Settings → Environment Variables, never in Git:
+
+- **Production and Preview runtime:** `DATABASE_URL` (Neon pooled connection URL), `SUPABASE_URL`, `SUPABASE_ANON_KEY`.
+- **Production and Preview build:** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (same Supabase project and publishable/anon key as the server variables).
+- **Optional server-only AI:** `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `MINIMAX_API_KEY`, or `GEMINI_API_KEY`. Do not configure `VITE_*` AI keys. Production AI endpoints remain disabled by the current safety gate.
+
+Do not use the production Neon database for Preview deployments. Create a separate Neon branch/database for Preview, set its `DATABASE_URL` only in the Vercel Preview environment, and apply the migration there separately. Configure Supabase Authentication URL allowlists for the final Vercel deployment domain and `https://lovnis.art/**` only when the custom domain is attached. Set the Supabase Site URL to the actual production URL after DNS and HTTPS are verified.
+
+This Vercel adapter does not enable uploads, campaign delivery, AI endpoints currently disabled in production, or scheduled jobs. Local-disk upload persistence and cron scheduling are not available on Vercel Functions. Configure durable private storage and any required scheduled functions as separate reviewed work before claiming those capabilities. Use `npm run check:integrations` against each environment before accepting customer data.
+
+`npm run preview` previews only the static frontend; it does not emulate Vercel Functions. Production readiness still requires tested auth, database migration, backups/restore, custom-domain HTTPS, monitoring, and recovery.
 
 ## Initial market validation hypothesis
 

@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "lint": "tsc --noEmit",
     "check:integrations": "tsx scripts/check-integrations.ts",
-    "test": "tsx --test projectPlanning.test.ts state/appStateHydration.test.ts state/userStorageScope.test.ts state/snapshotSecurity.test.ts state/bandBackup.test.ts state/receiptParsing.test.ts services/releaseMarketing.test.ts"
+    "test": "tsx --test projectPlanning.test.ts state/appStateHydration.test.ts state/userStorageScope.test.ts state/snapshotSecurity.test.ts state/bandBackup.test.ts state/receiptParsing.test.ts server/vercelAdapter.test.ts services/releaseMarketing.test.ts"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

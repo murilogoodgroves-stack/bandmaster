@@ -55,7 +55,14 @@ const poolConfig = connectionString
       }
     : null;
 
-const pool = poolConfig ? new Pool(poolConfig) : null;
+const pool = poolConfig
+  ? new Pool({
+      ...poolConfig,
+      max: Number(getEnvValue('PG_POOL_MAX') || (process.env.VERCEL ? '1' : '10')),
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 10_000,
+    })
+  : null;
 
 if (pool) {
   pool.on('error', (err) => {

@@ -7,20 +7,15 @@ import { GoogleGenAI } from '@google/genai';
 import { createClient } from '@supabase/supabase-js';
 import { removeClientStoredSecrets } from '../state/snapshotSecurity';
 import { initializeDatabase, isDatabaseConfigured, query, getDatabaseStatus, getRecentCronLogs, writeCronLog, saveUserAppStateSnapshot, loadUserAppStateSnapshot } from './db';
-import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsDir = path.resolve(__dirname, '../uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
 
-async function startServer() {
+export async function createApp(options: { initializeDatabase?: boolean; serveFrontend?: boolean } = {}) {
   const app = express();
-  const port = process.env.PORT || 3000;
   const isProduction = process.env.NODE_ENV === 'production';
   const supabaseUrl = process.env.SUPABASE_URL || '';
   const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
@@ -30,7 +25,9 @@ async function startServer() {
       })
     : null;
 
-  await initializeDatabase();
+  if (options.initializeDatabase !== false) {
+    await initializeDatabase();
+  }
 
   app.disable('x-powered-by');
   app.use((req, res, next) => {
@@ -38,7 +35,7 @@ async function startServer() {
     res.setHeader('Referrer-Policy', 'no-referrer');
     next();
   });
-  app.use(express.json({ limit: '20mb' }));
+  app.use(express.json({ limit: process.env.VERCEL ? '4mb' : '20mb' }));
   app.use('/uploads', (req, res, next) => {
     if (isProduction) {
       return res.status(503).json({ status: 'unavailable', message: 'File serving is disabled until private object storage is configured.' });
@@ -157,6 +154,7 @@ async function startServer() {
         return res.status(415).json({ status: 'error', message: 'The file extension and content type must match a supported format.' });
       }
 
+      await fs.promises.mkdir(uploadsDir, { recursive: true });
       const filePath = path.join(uploadsDir, `${randomUUID()}${extension}`);
       await fs.promises.writeFile(filePath, buffer, { flag: 'wx' });
 
@@ -601,20 +599,41 @@ async function startServer() {
     }
   });
 
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('/{*path}', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+  if (options.serveFrontend !== false) {
+    if (process.env.NODE_ENV !== 'production') {
+      const { createServer: createViteServer } = await import('vite');
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+    } else {
+      const distPath = path.join(process.cwd(), 'dist');
+      app.use(express.static(distPath));
+      app.get('/{*path}', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    }
   }
 
+  app.use((error: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (res.headersSent) {
+      return next(error);
+    }
+    if (error && typeof error === 'object' && 'type' in error && error.type === 'entity.too.large') {
+      return res.status(413).json({ status: 'error', message: 'Request payload exceeds the deployment limit. Reduce media or snapshot size.' });
+    }
+    console.error('Unhandled server request error:', error);
+    return res.status(500).json({ status: 'error', message: 'Unexpected server error.' });
+  });
+
+  return app;
+}
+
+async function startServer() {
+  const app = await createApp();
+  const port = process.env.PORT || 3000;
+  const isProduction = process.env.NODE_ENV === 'production';
   const host = isProduction ? '0.0.0.0' : '127.0.0.1';
   app.listen(Number(port), host, () => {
     console.log(`Backend server running at http://${host}:${port}`);
@@ -622,4 +641,9 @@ async function startServer() {
   });
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  void startServer().catch((error: unknown) => {
+    console.error('Could not start the Bandmaster server:', error);
+    process.exitCode = 1;
+  });
+}

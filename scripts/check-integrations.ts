@@ -49,10 +49,10 @@ if (!isDatabaseConfigured) {
        FROM information_schema.tables
        WHERE table_schema = current_schema()
          AND table_name = ANY($1::text[])`,
-      [['user_app_state_snapshots', 'cron_logs']],
+      [['user_app_state_snapshots']],
     );
     const presentTables = new Set(schema.rows.map((row: { table_name: string }) => row.table_name));
-    const missingTables = ['user_app_state_snapshots', 'cron_logs'].filter((name) => !presentTables.has(name));
+    const missingTables = ['user_app_state_snapshots'].filter((name) => !presentTables.has(name));
 
     if (missingTables.length > 0) {
       console.error(`Neon schema: BLOCKED (missing expected tables: ${missingTables.join(', ')}; no schema changes were made).`);
