@@ -6,8 +6,8 @@ import { randomUUID } from 'crypto';
 import { GoogleGenAI } from '@google/genai';
 import { generateText, type ModelMessage } from 'ai';
 import { createClient } from '@supabase/supabase-js';
-import { removeClientStoredSecrets } from '../state/snapshotSecurity';
-import { initializeDatabase, isDatabaseConfigured, query, getDatabaseStatus, getRecentCronLogs, writeCronLog, saveUserAppStateSnapshot, loadUserAppStateSnapshot } from './db';
+import { removeClientStoredSecrets } from '../state/snapshotSecurity.js';
+import { initializeDatabase, isDatabaseConfigured, query, getDatabaseStatus, getRecentCronLogs, writeCronLog, saveUserAppStateSnapshot, loadUserAppStateSnapshot } from './db.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
